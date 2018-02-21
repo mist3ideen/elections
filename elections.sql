@@ -2,8 +2,8 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 9.6.6
--- Dumped by pg_dump version 9.6.6
+-- Dumped from database version 9.6.7
+-- Dumped by pg_dump version 9.6.7
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -215,6 +215,32 @@ UNION ALL
 ALTER TABLE constituency_quota_list OWNER TO jkerry;
 
 --
+-- Name: votes_per_list; Type: TABLE; Schema: public; Owner: jkerry
+--
+
+CREATE TABLE votes_per_list (
+    constituency_id integer NOT NULL,
+    electoral_list_id integer,
+    value integer NOT NULL
+);
+
+
+ALTER TABLE votes_per_list OWNER TO jkerry;
+
+--
+-- Name: constituency_total_votes; Type: VIEW; Schema: public; Owner: jkerry
+--
+
+CREATE VIEW constituency_total_votes AS
+ SELECT vpl.constituency_id,
+    sum(vpl.value) AS total_votes
+   FROM votes_per_list vpl
+  GROUP BY vpl.constituency_id;
+
+
+ALTER TABLE constituency_total_votes OWNER TO jkerry;
+
+--
 -- Name: electoral_lists; Type: TABLE; Schema: public; Owner: jkerry
 --
 
@@ -262,6 +288,249 @@ CREATE TABLE preferential_votes (
 ALTER TABLE preferential_votes OWNER TO jkerry;
 
 --
+-- Name: results_constituency_threshold; Type: VIEW; Schema: public; Owner: jkerry
+--
+
+CREATE VIEW results_constituency_threshold AS
+ SELECT ctv.constituency_id,
+    ((1.0 * (ctv.total_votes)::numeric) / (cls.list_size)::numeric) AS list_threshold
+   FROM (constituency_list_size cls
+     JOIN constituency_total_votes ctv ON ((ctv.constituency_id = cls.constituency_id)));
+
+
+ALTER TABLE results_constituency_threshold OWNER TO jkerry;
+
+--
+-- Name: results_constituency_total_votes; Type: VIEW; Schema: public; Owner: jkerry
+--
+
+CREATE VIEW results_constituency_total_votes AS
+ SELECT vpl.constituency_id,
+    sum(vpl.value) AS total_votes
+   FROM (votes_per_list vpl
+     JOIN results_constituency_threshold rct ON ((rct.constituency_id = vpl.constituency_id)))
+  WHERE ((vpl.value)::numeric > rct.list_threshold)
+  GROUP BY vpl.constituency_id;
+
+
+ALTER TABLE results_constituency_total_votes OWNER TO jkerry;
+
+--
+-- Name: results_list_allocations; Type: VIEW; Schema: public; Owner: jkerry
+--
+
+CREATE VIEW results_list_allocations AS
+ SELECT vpl.constituency_id,
+    vpl.electoral_list_id,
+    vpl.value,
+    ((100.0 * (vpl.value)::numeric) / (ctv.total_votes)::numeric) AS votes_percentage_pre,
+    ((vpl.value)::numeric > rct.list_threshold) AS passed_threshold,
+    ((100.0 * (vpl.value)::numeric) / (rctv.total_votes)::numeric) AS votes_percentage_post,
+    (((1.0 * (vpl.value)::numeric) / (rctv.total_votes)::numeric) * (cls.list_size)::numeric) AS allocated_seats,
+    cls.list_size
+   FROM ((((votes_per_list vpl
+     JOIN constituency_total_votes ctv ON ((ctv.constituency_id = vpl.constituency_id)))
+     JOIN results_constituency_threshold rct ON ((rct.constituency_id = vpl.constituency_id)))
+     JOIN constituency_list_size cls ON ((cls.constituency_id = vpl.constituency_id)))
+     JOIN results_constituency_total_votes rctv ON ((rctv.constituency_id = vpl.constituency_id)))
+  ORDER BY vpl.value DESC;
+
+
+ALTER TABLE results_list_allocations OWNER TO jkerry;
+
+--
+-- Name: results_adjusted_list_allocations; Type: VIEW; Schema: public; Owner: jkerry
+--
+
+CREATE VIEW results_adjusted_list_allocations AS
+ WITH RECURSIVE rt(iteration, constituency_id, electoral_list_id, list_size, votes_percentage_post, data_a, data_b, data_c, data_d) AS (
+         SELECT (0)::bigint AS int8,
+            results_list_allocations.constituency_id,
+            results_list_allocations.electoral_list_id,
+            results_list_allocations.list_size,
+            results_list_allocations.votes_percentage_post,
+            floor(results_list_allocations.allocated_seats) AS floor,
+            ((results_list_allocations.allocated_seats - floor(results_list_allocations.allocated_seats)) * (10)::numeric),
+            results_list_allocations.votes_percentage_post,
+            ((results_list_allocations.list_size)::numeric - sum(floor(results_list_allocations.allocated_seats)) OVER (PARTITION BY results_list_allocations.constituency_id ORDER BY results_list_allocations.votes_percentage_post DESC))
+           FROM results_list_allocations
+          WHERE (results_list_allocations.passed_threshold = true)
+        UNION ALL
+         SELECT (rt.iteration + 1),
+            rt.constituency_id,
+            rt.electoral_list_id,
+            rt.list_size,
+            rt.votes_percentage_post,
+            floor(rt.data_b) AS floor,
+            ((rt.data_b - floor(rt.data_b)) * (10)::numeric),
+            0,
+            (min(rt.data_d) OVER (PARTITION BY rt.constituency_id) - sum(floor(rt.data_b)) OVER (PARTITION BY rt.constituency_id ORDER BY rt.data_b DESC))
+           FROM rt
+          WHERE (rt.data_d > (0)::numeric)
+        ), rt2 AS (
+         SELECT rt.constituency_id,
+            rt.electoral_list_id,
+            rt.list_size,
+            rt.data_d,
+            (COALESCE(lag(rt.data_d) OVER (PARTITION BY rt.constituency_id), (rt.list_size)::numeric) - GREATEST(rt.data_d, (0)::numeric)) AS data_e
+           FROM rt
+        )
+ SELECT rt2.constituency_id,
+    rt2.electoral_list_id,
+    sum(rt2.data_e) AS sum
+   FROM rt2
+  WHERE (rt2.data_e > (0)::numeric)
+  GROUP BY rt2.constituency_id, rt2.electoral_list_id;
+
+
+ALTER TABLE results_adjusted_list_allocations OWNER TO jkerry;
+
+--
+-- Name: results_total_preferential_votes; Type: VIEW; Schema: public; Owner: jkerry
+--
+
+CREATE VIEW results_total_preferential_votes AS
+ SELECT d.id AS district_id,
+    sum(pv.value) AS total_votes
+   FROM ((preferential_votes pv
+     JOIN candidates ca ON ((ca.id = pv.candidate_id)))
+     JOIN districts d ON ((d.id = ca.district_id)))
+  GROUP BY d.id;
+
+
+ALTER TABLE results_total_preferential_votes OWNER TO jkerry;
+
+--
+-- Name: results_sorted_preferential_list; Type: VIEW; Schema: public; Owner: jkerry
+--
+
+CREATE VIEW results_sorted_preferential_list AS
+ SELECT rank() OVER (ORDER BY ((100.0 * (pv.value)::numeric) / (rtpv.total_votes)::numeric) DESC) AS rowno,
+    co.id AS constituency_id,
+    d.id AS district_id,
+    ca.id AS candidate_id,
+    ca.category_id,
+    ca.electoral_list_id,
+    COALESCE(dq.value, 0) AS district_category_quota,
+    (rla.allocated_seats)::integer AS allocated_seats,
+    ((100.0 * (pv.value)::numeric) / (rtpv.total_votes)::numeric) AS preferential_percentage
+   FROM ((((((candidates ca
+     JOIN districts d ON ((d.id = ca.district_id)))
+     JOIN consituencies co ON ((co.id = d.constituency_id)))
+     JOIN preferential_votes pv ON ((pv.candidate_id = ca.id)))
+     JOIN results_total_preferential_votes rtpv ON ((rtpv.district_id = d.id)))
+     LEFT JOIN district_quotas dq ON (((dq.category_id = ca.category_id) AND (dq.district_id = ca.district_id))))
+     JOIN results_list_allocations rla ON ((rla.electoral_list_id = ca.electoral_list_id)))
+  ORDER BY ((100.0 * (pv.value)::numeric) / (rtpv.total_votes)::numeric) DESC;
+
+
+ALTER TABLE results_sorted_preferential_list OWNER TO jkerry;
+
+--
+-- Name: results_preferential; Type: VIEW; Schema: public; Owner: jkerry
+--
+
+CREATE VIEW results_preferential AS
+ WITH RECURSIVE allocations(iteration, rowno, constituency_id, district_id, candidate_id, category_id, electoral_list_id, district_category_quota, allocated_seats, preferential_percentage, data_a, data_b, data_c, debug_d) AS (
+        ( SELECT (0)::bigint AS int8,
+            results_sorted_preferential_list.rowno,
+            results_sorted_preferential_list.constituency_id,
+            results_sorted_preferential_list.district_id,
+            results_sorted_preferential_list.candidate_id,
+            results_sorted_preferential_list.category_id,
+            results_sorted_preferential_list.electoral_list_id,
+            results_sorted_preferential_list.district_category_quota,
+            results_sorted_preferential_list.allocated_seats,
+            results_sorted_preferential_list.preferential_percentage,
+            (LEAST((results_sorted_preferential_list.district_category_quota - 0), (results_sorted_preferential_list.allocated_seats - 0)) > 0) AS data_a,
+            (0 + ((LEAST((results_sorted_preferential_list.district_category_quota - 0), (results_sorted_preferential_list.allocated_seats - 0)) > 0))::integer) AS data_b,
+            (0 + ((LEAST((results_sorted_preferential_list.district_category_quota - 0), (results_sorted_preferential_list.allocated_seats - 0)) > 0))::integer) AS data_c,
+            (0)::bigint AS debug_d
+           FROM results_sorted_preferential_list
+         LIMIT 1)
+        UNION ALL
+         SELECT (allocations.iteration + 1),
+            rspl.rowno,
+                CASE
+                    WHEN (allocations.rowno = rspl.rowno) THEN allocations.constituency_id
+                    ELSE rspl.constituency_id
+                END AS constituency_id,
+                CASE
+                    WHEN (allocations.rowno = rspl.rowno) THEN allocations.district_id
+                    ELSE rspl.district_id
+                END AS district_id,
+                CASE
+                    WHEN (allocations.rowno = rspl.rowno) THEN allocations.candidate_id
+                    ELSE rspl.candidate_id
+                END AS candidate_id,
+                CASE
+                    WHEN (allocations.rowno = rspl.rowno) THEN allocations.category_id
+                    ELSE rspl.category_id
+                END AS category_id,
+                CASE
+                    WHEN (allocations.rowno = rspl.rowno) THEN allocations.electoral_list_id
+                    ELSE rspl.electoral_list_id
+                END AS electoral_list_id,
+                CASE
+                    WHEN (allocations.rowno = rspl.rowno) THEN allocations.district_category_quota
+                    ELSE rspl.district_category_quota
+                END AS district_category_quota,
+                CASE
+                    WHEN (allocations.rowno = rspl.rowno) THEN allocations.allocated_seats
+                    ELSE rspl.allocated_seats
+                END AS allocated_seats,
+                CASE
+                    WHEN (allocations.rowno = rspl.rowno) THEN allocations.preferential_percentage
+                    ELSE rspl.preferential_percentage
+                END AS preferential_percentage,
+                CASE
+                    WHEN (allocations.rowno = rspl.rowno) THEN allocations.data_a
+                    ELSE (LEAST((rspl.district_category_quota - lag(allocations.data_b, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.district_id, rspl.category_id ORDER BY rspl.preferential_percentage DESC)), (rspl.allocated_seats - lag(allocations.data_c, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.district_id, rspl.electoral_list_id ORDER BY rspl.preferential_percentage DESC))) > 0)
+                END AS data_a,
+                CASE
+                    WHEN (allocations.rowno = rspl.rowno) THEN allocations.data_b
+                    ELSE (lag(allocations.data_b, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.district_id, rspl.category_id ORDER BY rspl.preferential_percentage DESC) + ((LEAST((rspl.district_category_quota - lag(allocations.data_b, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.district_id, rspl.category_id ORDER BY rspl.preferential_percentage DESC)), (rspl.allocated_seats - lag(allocations.data_c, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.district_id, rspl.electoral_list_id ORDER BY rspl.preferential_percentage DESC))) > 0))::integer)
+                END AS data_b,
+                CASE
+                    WHEN (allocations.rowno = rspl.rowno) THEN allocations.data_c
+                    ELSE (lag(allocations.data_c, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.district_id, rspl.electoral_list_id ORDER BY rspl.preferential_percentage DESC) + ((LEAST((rspl.district_category_quota - lag(allocations.data_b, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.district_id, rspl.category_id ORDER BY rspl.preferential_percentage DESC)), (rspl.allocated_seats - lag(allocations.data_c, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.district_id, rspl.electoral_list_id ORDER BY rspl.preferential_percentage DESC))) > 0))::integer)
+                END AS data_c,
+            lag(allocations.data_b, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.district_id, rspl.category_id ORDER BY rspl.preferential_percentage DESC) AS debug_d
+           FROM (allocations
+             LEFT JOIN results_sorted_preferential_list rspl ON (((rspl.rowno = allocations.rowno) OR ((rspl.rowno = (allocations.iteration + 2)) AND (rspl.rowno = (allocations.rowno + 1))))))
+        ), ayret AS (
+         SELECT allocations.iteration,
+            allocations.rowno,
+            allocations.constituency_id,
+            allocations.district_id,
+            allocations.candidate_id,
+            allocations.category_id,
+            allocations.electoral_list_id,
+            allocations.district_category_quota,
+            allocations.allocated_seats,
+            allocations.preferential_percentage,
+            allocations.data_a,
+            allocations.data_b,
+            allocations.data_c,
+            allocations.debug_d
+           FROM allocations
+         LIMIT 200
+        )
+ SELECT a.constituency_id,
+    a.district_id,
+    a.candidate_id,
+    a.category_id,
+    a.electoral_list_id,
+    a.preferential_percentage
+   FROM ayret a
+  WHERE ((a.data_a IS TRUE) AND (a.iteration = ( SELECT (max(ayret.iteration) - 1) AS max_iteration
+           FROM ayret)))
+  ORDER BY a.rowno;
+
+
+ALTER TABLE results_preferential OWNER TO jkerry;
+
+--
 -- Name: smallcircles_id_seq; Type: SEQUENCE; Schema: public; Owner: jkerry
 --
 
@@ -281,19 +550,6 @@ ALTER TABLE smallcircles_id_seq OWNER TO jkerry;
 
 ALTER SEQUENCE smallcircles_id_seq OWNED BY districts.id;
 
-
---
--- Name: votes_per_list; Type: TABLE; Schema: public; Owner: jkerry
---
-
-CREATE TABLE votes_per_list (
-    consituency_id integer NOT NULL,
-    electoral_list_id integer,
-    value integer NOT NULL
-);
-
-
-ALTER TABLE votes_per_list OWNER TO jkerry;
 
 --
 -- Name: candidate_categories id; Type: DEFAULT; Schema: public; Owner: jkerry
@@ -368,6 +624,38 @@ SELECT pg_catalog.setval('candidate_categories_id_seq', 11, true);
 --
 
 COPY candidates (id, name, district_id, electoral_list_id, category_id) FROM stdin;
+1	A1	1	1	5
+2	A2	1	1	6
+3	A3	1	1	7
+4	A4	1	1	9
+5	A5	1	1	10
+6	A6	1	1	10
+7	A7	1	1	10
+8	A8	1	1	11
+9	B1	1	2	5
+10	B2	1	2	6
+11	B3	1	2	7
+12	B4	1	2	9
+13	B5	1	2	10
+14	B6	1	2	10
+15	B7	1	2	10
+16	B8	1	2	11
+17	C1	1	3	5
+18	C2	1	3	6
+19	C3	1	3	7
+20	C4	1	3	9
+21	C5	1	3	10
+22	C6	1	3	10
+23	C7	1	3	10
+24	C8	1	3	11
+25	D1	1	4	5
+26	D2	1	4	6
+27	D3	1	4	7
+28	D4	1	4	9
+29	D5	1	4	10
+30	D6	1	4	10
+31	D7	1	4	10
+32	D8	1	4	11
 \.
 
 
@@ -375,7 +663,7 @@ COPY candidates (id, name, district_id, electoral_list_id, category_id) FROM std
 -- Name: candidates_id_seq; Type: SEQUENCE SET; Schema: public; Owner: jkerry
 --
 
-SELECT pg_catalog.setval('candidates_id_seq', 1, false);
+SELECT pg_catalog.setval('candidates_id_seq', 32, true);
 
 
 --
@@ -517,6 +805,10 @@ COPY districts (id, name, constituency_id) FROM stdin;
 --
 
 COPY electoral_lists (id, name, constituency_id) FROM stdin;
+1	List A	16
+2	List B	16
+3	List C	16
+4	List D	16
 \.
 
 
@@ -524,7 +816,7 @@ COPY electoral_lists (id, name, constituency_id) FROM stdin;
 -- Name: electoral_lists_id_seq; Type: SEQUENCE SET; Schema: public; Owner: jkerry
 --
 
-SELECT pg_catalog.setval('electoral_lists_id_seq', 1, false);
+SELECT pg_catalog.setval('electoral_lists_id_seq', 4, true);
 
 
 --
@@ -532,6 +824,38 @@ SELECT pg_catalog.setval('electoral_lists_id_seq', 1, false);
 --
 
 COPY preferential_votes (constituency_id, candidate_id, value) FROM stdin;
+16	1	41
+16	2	97
+16	3	388
+16	4	318
+16	5	468
+16	6	204
+16	7	232
+16	8	264
+16	9	142
+16	10	512
+16	11	294
+16	12	419
+16	13	443
+16	14	489
+16	15	444
+16	16	480
+16	17	369
+16	18	392
+16	19	159
+16	20	376
+16	21	63
+16	22	110
+16	23	446
+16	24	511
+16	25	124
+16	26	81
+16	27	501
+16	28	491
+16	29	337
+16	30	339
+16	31	91
+16	32	368
 \.
 
 
@@ -546,7 +870,11 @@ SELECT pg_catalog.setval('smallcircles_id_seq', 26, true);
 -- Data for Name: votes_per_list; Type: TABLE DATA; Schema: public; Owner: jkerry
 --
 
-COPY votes_per_list (consituency_id, electoral_list_id, value) FROM stdin;
+COPY votes_per_list (constituency_id, electoral_list_id, value) FROM stdin;
+16	1	10000
+16	2	15000
+16	3	1000
+16	4	30000
 \.
 
 
@@ -611,7 +939,7 @@ ALTER TABLE ONLY districts
 --
 
 ALTER TABLE ONLY votes_per_list
-    ADD CONSTRAINT votes_per_list_un UNIQUE (consituency_id, electoral_list_id);
+    ADD CONSTRAINT votes_per_list_un UNIQUE (constituency_id, electoral_list_id);
 
 
 --
@@ -663,6 +991,14 @@ ALTER TABLE ONLY districts
 
 
 --
+-- Name: electoral_lists electoral_lists_consituencies_FK; Type: FK CONSTRAINT; Schema: public; Owner: jkerry
+--
+
+ALTER TABLE ONLY electoral_lists
+    ADD CONSTRAINT "electoral_lists_consituencies_FK" FOREIGN KEY (constituency_id) REFERENCES consituencies(id);
+
+
+--
 -- Name: preferential_votes preferential_votes_candidates_FK; Type: FK CONSTRAINT; Schema: public; Owner: jkerry
 --
 
@@ -683,7 +1019,7 @@ ALTER TABLE ONLY preferential_votes
 --
 
 ALTER TABLE ONLY votes_per_list
-    ADD CONSTRAINT "votes_per_list_consituencies_FK" FOREIGN KEY (consituency_id) REFERENCES consituencies(id);
+    ADD CONSTRAINT "votes_per_list_consituencies_FK" FOREIGN KEY (constituency_id) REFERENCES consituencies(id);
 
 
 --
