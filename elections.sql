@@ -15,14 +15,14 @@ SET client_min_messages = warning;
 SET row_security = off;
 
 --
--- Name: plpgsql; Type: EXTENSION; Schema: -; Owner: 
+-- Name: plpgsql; Type: EXTENSION; Schema: -; Owner: -
 --
 
 CREATE EXTENSION IF NOT EXISTS plpgsql WITH SCHEMA pg_catalog;
 
 
 --
--- Name: EXTENSION plpgsql; Type: COMMENT; Schema: -; Owner: 
+-- Name: EXTENSION plpgsql; Type: COMMENT; Schema: -; Owner: -
 --
 
 COMMENT ON EXTENSION plpgsql IS 'PL/pgSQL procedural language';
@@ -35,7 +35,7 @@ SET default_tablespace = '';
 SET default_with_oids = false;
 
 --
--- Name: consituencies; Type: TABLE; Schema: public; Owner: jkerry
+-- Name: consituencies; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE consituencies (
@@ -44,10 +44,8 @@ CREATE TABLE consituencies (
 );
 
 
-ALTER TABLE consituencies OWNER TO jkerry;
-
 --
--- Name: bigcircles_id_seq; Type: SEQUENCE; Schema: public; Owner: jkerry
+-- Name: bigcircles_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE bigcircles_id_seq
@@ -58,17 +56,15 @@ CREATE SEQUENCE bigcircles_id_seq
     CACHE 1;
 
 
-ALTER TABLE bigcircles_id_seq OWNER TO jkerry;
-
 --
--- Name: bigcircles_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jkerry
+-- Name: bigcircles_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE bigcircles_id_seq OWNED BY consituencies.id;
 
 
 --
--- Name: candidate_categories; Type: TABLE; Schema: public; Owner: jkerry
+-- Name: candidate_categories; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE candidate_categories (
@@ -77,10 +73,8 @@ CREATE TABLE candidate_categories (
 );
 
 
-ALTER TABLE candidate_categories OWNER TO jkerry;
-
 --
--- Name: candidate_categories_id_seq; Type: SEQUENCE; Schema: public; Owner: jkerry
+-- Name: candidate_categories_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE candidate_categories_id_seq
@@ -91,17 +85,15 @@ CREATE SEQUENCE candidate_categories_id_seq
     CACHE 1;
 
 
-ALTER TABLE candidate_categories_id_seq OWNER TO jkerry;
-
 --
--- Name: candidate_categories_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jkerry
+-- Name: candidate_categories_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE candidate_categories_id_seq OWNED BY candidate_categories.id;
 
 
 --
--- Name: candidates; Type: TABLE; Schema: public; Owner: jkerry
+-- Name: candidates; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE candidates (
@@ -113,10 +105,8 @@ CREATE TABLE candidates (
 );
 
 
-ALTER TABLE candidates OWNER TO jkerry;
-
 --
--- Name: candidates_id_seq; Type: SEQUENCE; Schema: public; Owner: jkerry
+-- Name: candidates_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE candidates_id_seq
@@ -127,17 +117,15 @@ CREATE SEQUENCE candidates_id_seq
     CACHE 1;
 
 
-ALTER TABLE candidates_id_seq OWNER TO jkerry;
-
 --
--- Name: candidates_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jkerry
+-- Name: candidates_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE candidates_id_seq OWNED BY candidates.id;
 
 
 --
--- Name: district_quotas; Type: TABLE; Schema: public; Owner: jkerry
+-- Name: district_quotas; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE district_quotas (
@@ -147,10 +135,8 @@ CREATE TABLE district_quotas (
 );
 
 
-ALTER TABLE district_quotas OWNER TO jkerry;
-
 --
--- Name: districts; Type: TABLE; Schema: public; Owner: jkerry
+-- Name: districts; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE districts (
@@ -160,10 +146,8 @@ CREATE TABLE districts (
 );
 
 
-ALTER TABLE districts OWNER TO jkerry;
-
 --
--- Name: constituency_list_size; Type: VIEW; Schema: public; Owner: jkerry
+-- Name: constituency_list_size; Type: VIEW; Schema: public; Owner: -
 --
 
 CREATE VIEW constituency_list_size AS
@@ -182,10 +166,8 @@ CREATE VIEW constituency_list_size AS
   ORDER BY c.id;
 
 
-ALTER TABLE constituency_list_size OWNER TO jkerry;
-
 --
--- Name: constituency_quota_list; Type: VIEW; Schema: public; Owner: jkerry
+-- Name: constituency_quota_list; Type: VIEW; Schema: public; Owner: -
 --
 
 CREATE VIEW constituency_quota_list AS
@@ -212,10 +194,8 @@ UNION ALL
   ORDER BY c.id, d.id);
 
 
-ALTER TABLE constituency_quota_list OWNER TO jkerry;
-
 --
--- Name: votes_per_list; Type: TABLE; Schema: public; Owner: jkerry
+-- Name: votes_per_list; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE votes_per_list (
@@ -225,10 +205,8 @@ CREATE TABLE votes_per_list (
 );
 
 
-ALTER TABLE votes_per_list OWNER TO jkerry;
-
 --
--- Name: constituency_total_votes; Type: VIEW; Schema: public; Owner: jkerry
+-- Name: constituency_total_votes; Type: VIEW; Schema: public; Owner: -
 --
 
 CREATE VIEW constituency_total_votes AS
@@ -238,10 +216,8 @@ CREATE VIEW constituency_total_votes AS
   GROUP BY vpl.constituency_id;
 
 
-ALTER TABLE constituency_total_votes OWNER TO jkerry;
-
 --
--- Name: electoral_lists; Type: TABLE; Schema: public; Owner: jkerry
+-- Name: electoral_lists; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE electoral_lists (
@@ -251,10 +227,8 @@ CREATE TABLE electoral_lists (
 );
 
 
-ALTER TABLE electoral_lists OWNER TO jkerry;
-
 --
--- Name: electoral_lists_id_seq; Type: SEQUENCE; Schema: public; Owner: jkerry
+-- Name: electoral_lists_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE electoral_lists_id_seq
@@ -265,17 +239,15 @@ CREATE SEQUENCE electoral_lists_id_seq
     CACHE 1;
 
 
-ALTER TABLE electoral_lists_id_seq OWNER TO jkerry;
-
 --
--- Name: electoral_lists_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jkerry
+-- Name: electoral_lists_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE electoral_lists_id_seq OWNED BY electoral_lists.id;
 
 
 --
--- Name: preferential_votes; Type: TABLE; Schema: public; Owner: jkerry
+-- Name: preferential_votes; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE preferential_votes (
@@ -285,10 +257,8 @@ CREATE TABLE preferential_votes (
 );
 
 
-ALTER TABLE preferential_votes OWNER TO jkerry;
-
 --
--- Name: results_constituency_threshold; Type: VIEW; Schema: public; Owner: jkerry
+-- Name: results_constituency_threshold; Type: VIEW; Schema: public; Owner: -
 --
 
 CREATE VIEW results_constituency_threshold AS
@@ -298,10 +268,8 @@ CREATE VIEW results_constituency_threshold AS
      JOIN constituency_total_votes ctv ON ((ctv.constituency_id = cls.constituency_id)));
 
 
-ALTER TABLE results_constituency_threshold OWNER TO jkerry;
-
 --
--- Name: results_constituency_total_votes; Type: VIEW; Schema: public; Owner: jkerry
+-- Name: results_constituency_total_votes; Type: VIEW; Schema: public; Owner: -
 --
 
 CREATE VIEW results_constituency_total_votes AS
@@ -313,10 +281,8 @@ CREATE VIEW results_constituency_total_votes AS
   GROUP BY vpl.constituency_id;
 
 
-ALTER TABLE results_constituency_total_votes OWNER TO jkerry;
-
 --
--- Name: results_list_allocations; Type: VIEW; Schema: public; Owner: jkerry
+-- Name: results_list_allocations; Type: VIEW; Schema: public; Owner: -
 --
 
 CREATE VIEW results_list_allocations AS
@@ -336,10 +302,8 @@ CREATE VIEW results_list_allocations AS
   ORDER BY vpl.value DESC;
 
 
-ALTER TABLE results_list_allocations OWNER TO jkerry;
-
 --
--- Name: results_adjusted_list_allocations; Type: VIEW; Schema: public; Owner: jkerry
+-- Name: results_adjusted_list_allocations; Type: VIEW; Schema: public; Owner: -
 --
 
 CREATE VIEW results_adjusted_list_allocations AS
@@ -383,10 +347,8 @@ CREATE VIEW results_adjusted_list_allocations AS
   GROUP BY rt2.constituency_id, rt2.electoral_list_id;
 
 
-ALTER TABLE results_adjusted_list_allocations OWNER TO jkerry;
-
 --
--- Name: results_total_preferential_votes; Type: VIEW; Schema: public; Owner: jkerry
+-- Name: results_total_preferential_votes; Type: VIEW; Schema: public; Owner: -
 --
 
 CREATE VIEW results_total_preferential_votes AS
@@ -398,10 +360,8 @@ CREATE VIEW results_total_preferential_votes AS
   GROUP BY d.id;
 
 
-ALTER TABLE results_total_preferential_votes OWNER TO jkerry;
-
 --
--- Name: results_sorted_preferential_list; Type: VIEW; Schema: public; Owner: jkerry
+-- Name: results_sorted_preferential_list; Type: VIEW; Schema: public; Owner: -
 --
 
 CREATE VIEW results_sorted_preferential_list AS
@@ -424,10 +384,8 @@ CREATE VIEW results_sorted_preferential_list AS
   ORDER BY ((100.0 * (pv.value)::numeric) / (rtpv.total_votes)::numeric) DESC;
 
 
-ALTER TABLE results_sorted_preferential_list OWNER TO jkerry;
-
 --
--- Name: results_preferential; Type: VIEW; Schema: public; Owner: jkerry
+-- Name: results_preferential; Type: VIEW; Schema: public; Owner: -
 --
 
 CREATE VIEW results_preferential AS
@@ -528,10 +486,8 @@ CREATE VIEW results_preferential AS
   ORDER BY a.rowno;
 
 
-ALTER TABLE results_preferential OWNER TO jkerry;
-
 --
--- Name: smallcircles_id_seq; Type: SEQUENCE; Schema: public; Owner: jkerry
+-- Name: smallcircles_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE smallcircles_id_seq
@@ -542,59 +498,57 @@ CREATE SEQUENCE smallcircles_id_seq
     CACHE 1;
 
 
-ALTER TABLE smallcircles_id_seq OWNER TO jkerry;
-
 --
--- Name: smallcircles_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jkerry
+-- Name: smallcircles_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE smallcircles_id_seq OWNED BY districts.id;
 
 
 --
--- Name: candidate_categories id; Type: DEFAULT; Schema: public; Owner: jkerry
+-- Name: candidate_categories id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY candidate_categories ALTER COLUMN id SET DEFAULT nextval('candidate_categories_id_seq'::regclass);
 
 
 --
--- Name: candidates id; Type: DEFAULT; Schema: public; Owner: jkerry
+-- Name: candidates id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY candidates ALTER COLUMN id SET DEFAULT nextval('candidates_id_seq'::regclass);
 
 
 --
--- Name: consituencies id; Type: DEFAULT; Schema: public; Owner: jkerry
+-- Name: consituencies id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY consituencies ALTER COLUMN id SET DEFAULT nextval('bigcircles_id_seq'::regclass);
 
 
 --
--- Name: districts id; Type: DEFAULT; Schema: public; Owner: jkerry
+-- Name: districts id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY districts ALTER COLUMN id SET DEFAULT nextval('smallcircles_id_seq'::regclass);
 
 
 --
--- Name: electoral_lists id; Type: DEFAULT; Schema: public; Owner: jkerry
+-- Name: electoral_lists id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY electoral_lists ALTER COLUMN id SET DEFAULT nextval('electoral_lists_id_seq'::regclass);
 
 
 --
--- Name: bigcircles_id_seq; Type: SEQUENCE SET; Schema: public; Owner: jkerry
+-- Name: bigcircles_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('bigcircles_id_seq', 30, true);
 
 
 --
--- Data for Name: candidate_categories; Type: TABLE DATA; Schema: public; Owner: jkerry
+-- Data for Name: candidate_categories; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY candidate_categories (id, name) FROM stdin;
@@ -613,14 +567,14 @@ COPY candidate_categories (id, name) FROM stdin;
 
 
 --
--- Name: candidate_categories_id_seq; Type: SEQUENCE SET; Schema: public; Owner: jkerry
+-- Name: candidate_categories_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('candidate_categories_id_seq', 11, true);
 
 
 --
--- Data for Name: candidates; Type: TABLE DATA; Schema: public; Owner: jkerry
+-- Data for Name: candidates; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY candidates (id, name, district_id, electoral_list_id, category_id) FROM stdin;
@@ -660,14 +614,14 @@ COPY candidates (id, name, district_id, electoral_list_id, category_id) FROM std
 
 
 --
--- Name: candidates_id_seq; Type: SEQUENCE SET; Schema: public; Owner: jkerry
+-- Name: candidates_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('candidates_id_seq', 32, true);
 
 
 --
--- Data for Name: consituencies; Type: TABLE DATA; Schema: public; Owner: jkerry
+-- Data for Name: consituencies; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY consituencies (id, name) FROM stdin;
@@ -690,7 +644,7 @@ COPY consituencies (id, name) FROM stdin;
 
 
 --
--- Data for Name: district_quotas; Type: TABLE DATA; Schema: public; Owner: jkerry
+-- Data for Name: district_quotas; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY district_quotas (district_id, category_id, value) FROM stdin;
@@ -767,7 +721,7 @@ COPY district_quotas (district_id, category_id, value) FROM stdin;
 
 
 --
--- Data for Name: districts; Type: TABLE DATA; Schema: public; Owner: jkerry
+-- Data for Name: districts; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY districts (id, name, constituency_id) FROM stdin;
@@ -801,7 +755,7 @@ COPY districts (id, name, constituency_id) FROM stdin;
 
 
 --
--- Data for Name: electoral_lists; Type: TABLE DATA; Schema: public; Owner: jkerry
+-- Data for Name: electoral_lists; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY electoral_lists (id, name, constituency_id) FROM stdin;
@@ -813,14 +767,14 @@ COPY electoral_lists (id, name, constituency_id) FROM stdin;
 
 
 --
--- Name: electoral_lists_id_seq; Type: SEQUENCE SET; Schema: public; Owner: jkerry
+-- Name: electoral_lists_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('electoral_lists_id_seq', 4, true);
 
 
 --
--- Data for Name: preferential_votes; Type: TABLE DATA; Schema: public; Owner: jkerry
+-- Data for Name: preferential_votes; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY preferential_votes (constituency_id, candidate_id, value) FROM stdin;
@@ -860,14 +814,14 @@ COPY preferential_votes (constituency_id, candidate_id, value) FROM stdin;
 
 
 --
--- Name: smallcircles_id_seq; Type: SEQUENCE SET; Schema: public; Owner: jkerry
+-- Name: smallcircles_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('smallcircles_id_seq', 26, true);
 
 
 --
--- Data for Name: votes_per_list; Type: TABLE DATA; Schema: public; Owner: jkerry
+-- Data for Name: votes_per_list; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY votes_per_list (constituency_id, electoral_list_id, value) FROM stdin;
@@ -879,7 +833,7 @@ COPY votes_per_list (constituency_id, electoral_list_id, value) FROM stdin;
 
 
 --
--- Name: consituencies bigcircles_pk; Type: CONSTRAINT; Schema: public; Owner: jkerry
+-- Name: consituencies bigcircles_pk; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY consituencies
@@ -887,7 +841,7 @@ ALTER TABLE ONLY consituencies
 
 
 --
--- Name: candidate_categories candidate_categories_pk; Type: CONSTRAINT; Schema: public; Owner: jkerry
+-- Name: candidate_categories candidate_categories_pk; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY candidate_categories
@@ -895,7 +849,7 @@ ALTER TABLE ONLY candidate_categories
 
 
 --
--- Name: candidates candidates_pk; Type: CONSTRAINT; Schema: public; Owner: jkerry
+-- Name: candidates candidates_pk; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY candidates
@@ -903,7 +857,7 @@ ALTER TABLE ONLY candidates
 
 
 --
--- Name: district_quotas district_quotas_pk; Type: CONSTRAINT; Schema: public; Owner: jkerry
+-- Name: district_quotas district_quotas_pk; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY district_quotas
@@ -911,7 +865,7 @@ ALTER TABLE ONLY district_quotas
 
 
 --
--- Name: electoral_lists electoral_lists_pk; Type: CONSTRAINT; Schema: public; Owner: jkerry
+-- Name: electoral_lists electoral_lists_pk; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY electoral_lists
@@ -919,7 +873,7 @@ ALTER TABLE ONLY electoral_lists
 
 
 --
--- Name: preferential_votes preferential_votes_pk; Type: CONSTRAINT; Schema: public; Owner: jkerry
+-- Name: preferential_votes preferential_votes_pk; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY preferential_votes
@@ -927,7 +881,7 @@ ALTER TABLE ONLY preferential_votes
 
 
 --
--- Name: districts smallcircles_pk; Type: CONSTRAINT; Schema: public; Owner: jkerry
+-- Name: districts smallcircles_pk; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY districts
@@ -935,7 +889,7 @@ ALTER TABLE ONLY districts
 
 
 --
--- Name: votes_per_list votes_per_list_un; Type: CONSTRAINT; Schema: public; Owner: jkerry
+-- Name: votes_per_list votes_per_list_un; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY votes_per_list
@@ -943,7 +897,7 @@ ALTER TABLE ONLY votes_per_list
 
 
 --
--- Name: candidates candidates_candidate_categories_FK; Type: FK CONSTRAINT; Schema: public; Owner: jkerry
+-- Name: candidates candidates_candidate_categories_FK; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY candidates
@@ -951,7 +905,7 @@ ALTER TABLE ONLY candidates
 
 
 --
--- Name: candidates candidates_districts_FK; Type: FK CONSTRAINT; Schema: public; Owner: jkerry
+-- Name: candidates candidates_districts_FK; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY candidates
@@ -959,7 +913,7 @@ ALTER TABLE ONLY candidates
 
 
 --
--- Name: candidates candidates_electoral_lists_FK; Type: FK CONSTRAINT; Schema: public; Owner: jkerry
+-- Name: candidates candidates_electoral_lists_FK; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY candidates
@@ -967,7 +921,7 @@ ALTER TABLE ONLY candidates
 
 
 --
--- Name: district_quotas district_quotas_candidate_categories_FK; Type: FK CONSTRAINT; Schema: public; Owner: jkerry
+-- Name: district_quotas district_quotas_candidate_categories_FK; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY district_quotas
@@ -975,7 +929,7 @@ ALTER TABLE ONLY district_quotas
 
 
 --
--- Name: district_quotas district_quotas_districts_FK; Type: FK CONSTRAINT; Schema: public; Owner: jkerry
+-- Name: district_quotas district_quotas_districts_FK; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY district_quotas
@@ -983,7 +937,7 @@ ALTER TABLE ONLY district_quotas
 
 
 --
--- Name: districts districts_consituencies_FK; Type: FK CONSTRAINT; Schema: public; Owner: jkerry
+-- Name: districts districts_consituencies_FK; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY districts
@@ -991,7 +945,7 @@ ALTER TABLE ONLY districts
 
 
 --
--- Name: electoral_lists electoral_lists_consituencies_FK; Type: FK CONSTRAINT; Schema: public; Owner: jkerry
+-- Name: electoral_lists electoral_lists_consituencies_FK; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY electoral_lists
@@ -999,7 +953,7 @@ ALTER TABLE ONLY electoral_lists
 
 
 --
--- Name: preferential_votes preferential_votes_candidates_FK; Type: FK CONSTRAINT; Schema: public; Owner: jkerry
+-- Name: preferential_votes preferential_votes_candidates_FK; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY preferential_votes
@@ -1007,7 +961,7 @@ ALTER TABLE ONLY preferential_votes
 
 
 --
--- Name: preferential_votes preferential_votes_consituencies_FK; Type: FK CONSTRAINT; Schema: public; Owner: jkerry
+-- Name: preferential_votes preferential_votes_consituencies_FK; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY preferential_votes
@@ -1015,7 +969,7 @@ ALTER TABLE ONLY preferential_votes
 
 
 --
--- Name: votes_per_list votes_per_list_consituencies_FK; Type: FK CONSTRAINT; Schema: public; Owner: jkerry
+-- Name: votes_per_list votes_per_list_consituencies_FK; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY votes_per_list
@@ -1023,7 +977,7 @@ ALTER TABLE ONLY votes_per_list
 
 
 --
--- Name: votes_per_list votes_per_list_electoral_lists_FK; Type: FK CONSTRAINT; Schema: public; Owner: jkerry
+-- Name: votes_per_list votes_per_list_electoral_lists_FK; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY votes_per_list
