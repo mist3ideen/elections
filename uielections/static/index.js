@@ -62,6 +62,11 @@ $(document).ready(function() {
         var $form = $("#edit-modal form.formal#edit_form");
         var $deleteForm = $("#edit-modal form.formal#delete_form");
         var $table = $(this).parents("table");
+
+        if ($table.data('editable') === false) {
+            return false;
+        }
+
         var table = $table.DataTable();
         var data = table.row(this).data(); // .DT_RowData.fields_data;
         var fieldsData = data.DT_RowData.fields_data;

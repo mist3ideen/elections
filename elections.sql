@@ -341,7 +341,7 @@ CREATE VIEW results_adjusted_list_allocations AS
         )
  SELECT rt2.constituency_id,
     rt2.electoral_list_id,
-    sum(rt2.data_e) AS sum
+    sum(rt2.data_e) AS allocated_seats
    FROM rt2
   WHERE (rt2.data_e > (0)::numeric)
   GROUP BY rt2.constituency_id, rt2.electoral_list_id;
@@ -380,7 +380,7 @@ CREATE VIEW results_sorted_preferential_list AS
      JOIN preferential_votes pv ON ((pv.candidate_id = ca.id)))
      JOIN results_total_preferential_votes rtpv ON ((rtpv.district_id = d.id)))
      LEFT JOIN district_quotas dq ON (((dq.category_id = ca.category_id) AND (dq.district_id = ca.district_id))))
-     JOIN results_list_allocations rla ON ((rla.electoral_list_id = ca.electoral_list_id)))
+     JOIN results_adjusted_list_allocations rla ON ((rla.electoral_list_id = ca.electoral_list_id)))
   ORDER BY ((100.0 * (pv.value)::numeric) / (rtpv.total_votes)::numeric) DESC;
 
 
@@ -472,7 +472,7 @@ CREATE VIEW results_preferential AS
             allocations.data_c,
             allocations.debug_d
            FROM allocations
-         LIMIT 200
+         LIMIT 1000
         )
  SELECT a.constituency_id,
     a.district_id,
@@ -484,6 +484,25 @@ CREATE VIEW results_preferential AS
   WHERE ((a.data_a IS TRUE) AND (a.iteration = ( SELECT (max(ayret.iteration) - 1) AS max_iteration
            FROM ayret)))
   ORDER BY a.rowno;
+
+
+--
+-- Name: results_preferential_illustrated; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW results_preferential_illustrated AS
+ SELECT rspl.rowno,
+    rspl.constituency_id,
+    rspl.district_id,
+    rspl.candidate_id,
+    rspl.category_id,
+    rspl.electoral_list_id,
+    rspl.district_category_quota,
+    rspl.allocated_seats,
+    rspl.preferential_percentage,
+    (rp.candidate_id IS NOT NULL) AS winning
+   FROM (results_sorted_preferential_list rspl
+     LEFT JOIN results_preferential rp ON ((rp.candidate_id = rspl.candidate_id)));
 
 
 --

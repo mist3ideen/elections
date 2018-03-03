@@ -1,6 +1,10 @@
 from collections import namedtuple
+import calendar
+from datetime import datetime
+from decimal import Decimal, localcontext
 
 from flask import Flask, Blueprint, jsonify, url_for, request, render_template
+from flask.json import JSONEncoder
 from sqlalchemy_utils import escape_like
 from sqlalchemy import or_, func, Date
 from flask_sqlalchemy import SQLAlchemy
@@ -8,14 +12,41 @@ from flask_sqlalchemy import SQLAlchemy
 from .datatables import DataTable
 
 FieldColumn = namedtuple('FieldColumn', 'name,title,filter,type,orderable,searchable,visible,editable,choices')
+ROFieldColumn = lambda *args, **kwargs: FieldColumn(*args, editable=False, visible=False, **kwargs)
 noop_filter = lambda instance, value: value
 
 
 def getname_filter(model, field):
     return lambda instance, value: getattr(model.query.get(value), field)
 
+class CustomJSONEncoder(JSONEncoder):
+
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            if obj.utcoffset() is not None:
+                obj = obj - obj.utcoffset()
+            millis = int(
+                calendar.timegm(obj.timetuple()) * 1000 +
+                obj.microsecond / 1000
+            )
+            return millis
+        elif isinstance(obj, Decimal):
+            # return str(obj)
+            # return float(obj)
+            # with localcontext() as ctx:
+            #     ctx.prec = 4
+            return str(obj.quantize(Decimal('1.0000')))
+        try:
+            iterable = iter(obj)
+        except TypeError:
+            pass
+        else:
+            return list(iterable)
+        return JSONEncoder.default(self, obj)
+
 
 app = Flask(__name__)
+app.json_encoder = CustomJSONEncoder
 app.config.from_object('uielections.config')
 app.config.from_envvar('UIELECTIONS_CONFIG', silent=True)
 
@@ -23,6 +54,9 @@ db = SQLAlchemy(app=app)
 
 dt = Blueprint('datatables', __name__)
 TABLES = {}
+
+class View:
+    pass
 
 
 def mynamedtuple(name, *field_args):
@@ -161,6 +195,224 @@ class PreferentialVote(db.Model):
     value = db.Column(db.Integer, nullable=False)
 
     id = db.CompositeProperty(_PreferentialVoteId, 'constituency_id', 'candidate_id')
+
+
+class ConstituencyListSize(View, db.Model):
+    __tablename__ = 'constituency_list_size'
+
+    FIELDS = [
+        ROFieldColumn('constituency_id', 'Constituency', getname_filter(Constituency, 'name'), 'string', orderable=True, searchable=True, choices=Constituency),
+        ROFieldColumn('list_size', 'Value', noop_filter, 'number', orderable=True, searchable=False, choices=None),
+    ]
+
+    id = db.synonym('constituency_id')
+
+    constituency_id = db.Column(db.Integer, db.ForeignKey('consituencies.id'), primary_key=True)
+    list_size = db.Column(db.Integer, nullable=False)
+
+
+class ConstituencyTotalVotes(View, db.Model):
+    __tablename__ = 'constituency_total_votes'
+
+    FIELDS = [
+        ROFieldColumn('constituency_id', 'Constituency', getname_filter(Constituency, 'name'), 'string', orderable=True, searchable=True, choices=Constituency),
+        ROFieldColumn('total_votes', 'Value', noop_filter, 'number', orderable=True, searchable=False, choices=None),
+    ]
+
+    id = db.synonym('constituency_id')
+
+    constituency_id = db.Column(db.Integer, db.ForeignKey('consituencies.id'), primary_key=True)
+    total_votes = db.Column(db.Integer, nullable=False)
+
+
+class ConstituencyInitialThreshold(View, db.Model):
+    __tablename__ = 'results_constituency_threshold'
+
+    FIELDS = [
+        ROFieldColumn('constituency_id', 'Constituency', getname_filter(Constituency, 'name'), 'string', orderable=True, searchable=True, choices=Constituency),
+        ROFieldColumn('list_threshold', 'Value', noop_filter, 'number', orderable=True, searchable=False, choices=None),
+    ]
+
+    id = db.synonym('constituency_id')
+
+    constituency_id = db.Column(db.Integer, db.ForeignKey('consituencies.id'), primary_key=True)
+    list_threshold = db.Column(db.Integer, nullable=False)
+
+
+class ConstituencyCountedVotes(View, db.Model):
+    __tablename__ = 'results_constituency_total_votes'
+
+    FIELDS = [
+        ROFieldColumn('constituency_id', 'Constituency', getname_filter(Constituency, 'name'), 'string', orderable=True, searchable=True, choices=Constituency),
+        ROFieldColumn('total_votes', 'Value', noop_filter, 'number', orderable=True, searchable=False, choices=None),
+    ]
+
+    id = db.synonym('constituency_id')
+
+    constituency_id = db.Column(db.Integer, db.ForeignKey('consituencies.id'), primary_key=True)
+    total_votes = db.Column(db.Integer, nullable=False)
+
+
+def _allocated_seats_filter(o, v):
+    return '{ss}{v:.5} / {t}{es}'.format(
+        v=v, t=o.list_size,
+        ss='<s>' if not o.passed_threshold else '', es='</s>' if not o.passed_threshold else ''
+    )
+
+
+def _updated_votes_filter(o, v):
+    return v if o.passed_threshold else '<s>{:.5}</s>'.format(v)
+
+
+class ListAllocations(View, db.Model):
+    __tablename__ = 'results_list_allocations'
+
+    _ListAllocationsId = mynamedtuple('_ListAllocationsId', 'constituency_id,electoral_list_id')
+
+    FIELDS = [
+        ROFieldColumn('constituency_id', 'Constituency', getname_filter(Constituency, 'name'), 'string', orderable=True, searchable=True, choices=Constituency),
+        ROFieldColumn('electoral_list_id', 'List', getname_filter(ElectoralList, 'name'), 'string', orderable=True, searchable=True, choices=ElectoralList),
+        ROFieldColumn('value', 'Value', noop_filter, 'number', orderable=True, searchable=False, choices=None),
+        ROFieldColumn('passed_threshold', '> Threshold?', noop_filter, 'number', orderable=True, searchable=False, choices=None),
+        ROFieldColumn('votes_percentage_pre', 'Initial Votes (%)', noop_filter, 'number', orderable=True, searchable=False, choices=None),
+        ROFieldColumn('votes_percentage_post', 'Updated Votes (%)', _updated_votes_filter, 'number', orderable=True, searchable=False, choices=None),
+        ROFieldColumn('allocated_seats', 'Allocated Seats', _allocated_seats_filter, 'number', orderable=True, searchable=False, choices=None),
+    ]
+
+    id = db.CompositeProperty(_ListAllocationsId, 'constituency_id', 'electoral_list_id')
+
+    constituency_id = db.Column(db.Integer, db.ForeignKey('consituencies.id'), primary_key=True)
+    electoral_list_id = db.Column(db.Integer, db.ForeignKey('consituencies.id'), primary_key=True)
+    value = db.Column(db.Integer, nullable=False)
+    votes_percentage_pre = db.Column(db.Numeric, nullable=False)
+    passed_threshold = db.Column(db.Boolean, nullable=False)
+    votes_percentage_post = db.Column(db.Numeric, nullable=False)
+    allocated_seats = db.Column(db.Numeric, nullable=False)
+    list_size = db.Column(db.Integer, nullable=False)
+
+
+class AdjustedListAllocations(View, db.Model):
+    __tablename__ = 'results_adjusted_list_allocations'
+
+    _ListAllocationsId = mynamedtuple('_ListAllocationsId', 'constituency_id,electoral_list_id')
+
+    FIELDS = [
+        ROFieldColumn('constituency_id', 'Constituency', getname_filter(Constituency, 'name'), 'string', orderable=True, searchable=True, choices=Constituency),
+        ROFieldColumn('electoral_list_id', 'List', getname_filter(ElectoralList, 'name'), 'string', orderable=True, searchable=True, choices=ElectoralList),
+        ROFieldColumn('allocated_seats', 'Seats', noop_filter, 'number', orderable=True, searchable=False, choices=None),
+    ]
+
+    id = db.CompositeProperty(_ListAllocationsId, 'constituency_id', 'electoral_list_id')
+
+    constituency_id = db.Column(db.Integer, db.ForeignKey('consituencies.id'), primary_key=True)
+    electoral_list_id = db.Column(db.Integer, db.ForeignKey('consituencies.id'), primary_key=True)
+    # allocated_seats = db.Column('sum', db.Integer, nullable=False)
+    allocated_seats = db.Column(db.Integer, nullable=False)
+
+
+class TotalPreferentialVotes(View, db.Model):
+    __tablename__ = 'results_total_preferential_votes'
+
+    FIELDS = [
+        ROFieldColumn('district_id', 'District', getname_filter(District, 'name'), 'string', orderable=True, searchable=True, choices=District),
+        ROFieldColumn('total_votes', 'Value', noop_filter, 'number', orderable=True, searchable=False, choices=None),
+    ]
+
+    id = db.synonym('district_id')
+
+    district_id = db.Column(db.Integer, db.ForeignKey('districts.id'), primary_key=True)
+    total_votes = db.Column(db.Integer, nullable=False)
+
+
+class SortedPreferentialList(View, db.Model):
+    __tablename__ = 'results_sorted_preferential_list'
+
+    # rowno, constituency_id, district_id, candidate_id, category_id, electoral_list_id, district_category_quota, allocated_seats, preferential_percentage
+    _SortedPreferentialId = mynamedtuple('_SortedPreferentialId', 'rowno,constituency_id')
+
+    FIELDS = [
+        ROFieldColumn('constituency_id', 'Constituency', getname_filter(Constituency, 'name'), 'string', orderable=True, searchable=True, choices=Constituency),
+        ROFieldColumn('rowno', 'Rank', noop_filter, 'number', orderable=True, searchable=True, choices=None),
+        ROFieldColumn('electoral_list_id', 'List', getname_filter(ElectoralList, 'name'), 'string', orderable=True, searchable=True, choices=ElectoralList),
+        ROFieldColumn('district_id', 'District', getname_filter(District, 'name'), 'string', orderable=True, searchable=True, choices=District),
+        ROFieldColumn('category_id', 'Category', getname_filter(CandidateCategory, 'name'), 'string', orderable=True, searchable=True, choices=CandidateCategory),
+        ROFieldColumn('candidate_id', 'Candidate', getname_filter(Candidate, 'name'), 'string', orderable=True, searchable=True, choices=Candidate),
+        ROFieldColumn('district_category_quota', 'D/C Quota', noop_filter, 'number', orderable=True, searchable=True, choices=None),
+        ROFieldColumn('allocated_seats', 'Seats', noop_filter, 'number', orderable=True, searchable=True, choices=None),
+        ROFieldColumn('preferential_percentage', 'Value (%)', noop_filter, 'number', orderable=True, searchable=False, choices=None),
+    ]
+
+    id = db.CompositeProperty(_SortedPreferentialId, 'rowno', 'constituency_id')
+
+    rowno = db.Column(db.Integer, primary_key=True)
+    constituency_id = db.Column(db.Integer, db.ForeignKey('consituencies.id'))
+    district_id = db.Column(db.Integer, db.ForeignKey('districts.id'))
+    candidate_id = db.Column(db.Integer, db.ForeignKey('candidates.id'))
+    category_id = db.Column(db.Integer, db.ForeignKey('candidate_categories.id'))
+    electoral_list_id = db.Column(db.Integer, db.ForeignKey('electoral_lists.id'))
+    district_category_quota = db.Column(db.Integer)
+    allocated_seats = db.Column(db.Integer)
+    preferential_percentage = db.Column(db.Numeric)
+
+
+def _illustrated_filter(f=noop_filter):
+    return lambda o, v: '{ss}{v}{es}'.format(
+        v=f(o, v),
+        ss='<strong>' if o.winning else '<s>', es='</strong>' if not o.winning else '</s>'
+    )
+
+
+class IllustratedFinalResult(View, db.Model):
+    __tablename__ = 'results_preferential_illustrated'
+
+    _SortedPreferentialId = mynamedtuple('_SortedPreferentialId', 'rowno,constituency_id')
+
+    FIELDS = [
+        ROFieldColumn('constituency_id', 'Constituency', _illustrated_filter(getname_filter(Constituency, 'name')), 'string', orderable=True, searchable=True, choices=Constituency),
+        ROFieldColumn('rowno', 'Rank', _illustrated_filter(), 'number', orderable=True, searchable=True, choices=None),
+        ROFieldColumn('electoral_list_id', 'List', _illustrated_filter(getname_filter(ElectoralList, 'name')), 'string', orderable=True, searchable=True, choices=ElectoralList),
+        ROFieldColumn('district_id', 'District', _illustrated_filter(getname_filter(District, 'name')), 'string', orderable=True, searchable=True, choices=District),
+        ROFieldColumn('category_id', 'Category', _illustrated_filter(getname_filter(CandidateCategory, 'name')), 'string', orderable=True, searchable=True, choices=CandidateCategory),
+        ROFieldColumn('candidate_id', 'Candidate', _illustrated_filter(getname_filter(Candidate, 'name')), 'string', orderable=True, searchable=True, choices=Candidate),
+        ROFieldColumn('district_category_quota', 'D/C Quota', _illustrated_filter(), 'number', orderable=True, searchable=True, choices=None),
+        ROFieldColumn('allocated_seats', 'Seats', _illustrated_filter(), 'number', orderable=True, searchable=True, choices=None),
+        ROFieldColumn('preferential_percentage', 'Value (%)', _illustrated_filter(), 'number', orderable=True, searchable=False, choices=None),
+    ]
+
+    id = db.CompositeProperty(_SortedPreferentialId, 'rowno', 'constituency_id')
+
+    rowno = db.Column(db.Integer, primary_key=True)
+    constituency_id = db.Column(db.Integer, db.ForeignKey('consituencies.id'))
+    district_id = db.Column(db.Integer, db.ForeignKey('districts.id'))
+    candidate_id = db.Column(db.Integer, db.ForeignKey('candidates.id'))
+    category_id = db.Column(db.Integer, db.ForeignKey('candidate_categories.id'))
+    electoral_list_id = db.Column(db.Integer, db.ForeignKey('electoral_lists.id'))
+    district_category_quota = db.Column(db.Integer)
+    allocated_seats = db.Column(db.Integer)
+    preferential_percentage = db.Column(db.Numeric)
+    winning = db.Column(db.Boolean)
+
+
+class FinalResult(View, db.Model):
+    __tablename__ = 'results_preferential'
+
+    FIELDS = [
+        ROFieldColumn('constituency_id', 'Constituency', getname_filter(Constituency, 'name'), 'string', orderable=True, searchable=True, choices=Constituency),
+        ROFieldColumn('electoral_list_id', 'List', getname_filter(ElectoralList, 'name'), 'string', orderable=True, searchable=True, choices=ElectoralList),
+        ROFieldColumn('district_id', 'District', getname_filter(District, 'name'), 'string', orderable=True, searchable=True, choices=District),
+        ROFieldColumn('category_id', 'Category', getname_filter(CandidateCategory, 'name'), 'string', orderable=True, searchable=True, choices=CandidateCategory),
+        ROFieldColumn('candidate_id', 'Candidate', getname_filter(Candidate, 'name'), 'string', orderable=True, searchable=True, choices=Candidate),
+        ROFieldColumn('preferential_percentage', 'Value (%)', noop_filter, 'number', orderable=True, searchable=False, choices=None),
+    ]
+
+    id = db.synonym('candidate_id')
+
+    constituency_id = db.Column(db.Integer, db.ForeignKey('consituencies.id'))
+    district_id = db.Column(db.Integer, db.ForeignKey('districts.id'))
+    candidate_id = db.Column(db.Integer, db.ForeignKey('candidates.id'), primary_key=True)
+    category_id = db.Column(db.Integer, db.ForeignKey('candidate_categories.id'))
+    electoral_list_id = db.Column(db.Integer, db.ForeignKey('electoral_lists.id'))
+    preferential_percentage = db.Column(db.Numeric)
 
 
 @app.route('/')
@@ -316,9 +568,24 @@ potato(dt, Constituency)
 potato(dt, District)
 potato(dt, CandidateCategory)
 potato(dt, DistrictQuota)
+
 potato(dt, ElectoralList)
 potato(dt, Candidate)
+
 potato(dt, VotesPerList)
 potato(dt, PreferentialVote)
+
+potato(dt, ConstituencyListSize)
+potato(dt, ConstituencyTotalVotes)
+potato(dt, ConstituencyInitialThreshold)
+potato(dt, ConstituencyCountedVotes)
+potato(dt, ListAllocations)
+potato(dt, AdjustedListAllocations)
+
+potato(dt, TotalPreferentialVotes)
+potato(dt, SortedPreferentialList)
+potato(dt, IllustratedFinalResult)
+potato(dt, FinalResult)
+
 
 app.register_blueprint(dt)

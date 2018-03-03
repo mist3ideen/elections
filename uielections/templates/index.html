@@ -28,40 +28,101 @@
     </head>
     <body>
         <div class="fluid-container">
-            <div>
-                <div class="col-md-4 table-container">
-                    <h3>Constituency&nbsp;<a class="add-btn btn btn-default pull-right">&plus; Add</a></h3>
-                    <table id="table-constituency" class="table display"></table>
+            <div class="col-md-12">
+                <hr />
+                <div class="row">
+                    <div class="col-md-4 table-container">
+                        <h3>Constituency&nbsp;<a class="add-btn btn btn-default pull-right">&plus; Add</a></h3>
+                        <table id="table-constituency" class="table display"></table>
+                    </div>
+                    <div class="col-md-4 table-container">
+                        <h3>District&nbsp;<a class="add-btn btn btn-default pull-right">&plus; Add</a></h3>
+                        <table id="table-district" class="table display" data-dependson="constituency"></table>
+                    </div>
+                    <div class="col-md-4 table-container">
+                        <h3>Categories&nbsp;<a class="add-btn btn btn-default pull-right">&plus; Add</a></h3>
+                        <table id="table-candidatecategory" class="table display"></table>
+                    </div>
                 </div>
-                <div class="col-md-4 table-container">
-                    <h3>District&nbsp;<a class="add-btn btn btn-default pull-right">&plus; Add</a></h3>
-                    <table id="table-district" class="table display" data-dependson="constituency"></table>
+                <div class="row">
+                    <div class="col-md-12 table-container">
+                        <h3>Quotas&nbsp;<a class="add-btn btn btn-default pull-right">&plus; Add</a></h3>
+                        <table id="table-districtquota" class="table display" data-dependson="constituency district candidatecategory"></table>
+                    </div>
                 </div>
-                <div class="col-md-4 table-container">
-                    <h3>Categories&nbsp;<a class="add-btn btn btn-default pull-right">&plus; Add</a></h3>
-                    <table id="table-candidatecategory" class="table display"></table>
+                <hr />
+                <div class="row">
+                    <div class="col-md-6 table-container">
+                        <h3>Lists&nbsp;<a class="add-btn btn btn-default pull-right">&plus; Add</a></h3>
+                        <table id="table-electorallist" class="table display" data-dependson="constituency"></table>
+                    </div>
+                    <div class="col-md-6 table-container">
+                        <h3>Candidates&nbsp;<a class="add-btn btn btn-default pull-right">&plus; Add</a></h3>
+                        <table id="table-candidate" class="table display" data-dependson="electorallist constituency district candidatecategory"></table>
+                    </div>
                 </div>
-                <div class="col-md-12 table-container">
-                    <h3>Quotas&nbsp;<a class="add-btn btn btn-default pull-right">&plus; Add</a></h3>
-                    <table id="table-districtquota" class="table display" data-dependson="constituency district candidatecategory"></table>
+                <hr />
+                <div class="row">
+                    <div class="col-md-6 table-container">
+                        <h3>Results - List Votes&nbsp;<a class="add-btn btn btn-default pull-right">&plus; Add</a></h3>
+                        <table id="table-votesperlist" class="table display" data-dependson="constituency electorallist"></table>
+                    </div>
+                    <div class="col-md-6 table-container">
+                        <h3>Results - Preferential Votes&nbsp;<a class="add-btn btn btn-default pull-right">&plus; Add</a></h3>
+                        <table id="table-preferentialvote" class="table display" data-dependson="constituency candidate electorallist district candidatecategory"></table>
+                    </div>
                 </div>
-                <div class="col-md-6 table-container">
-                    <h3>Lists&nbsp;<a class="add-btn btn btn-default pull-right">&plus; Add</a></h3>
-                    <table id="table-electorallist" class="table display" data-dependson="constituency"></table>
+                <hr />
+                <div class="row">
+                    <div class="col-md-3 table-container">
+                        <h3>Metrics - List Size</h3>
+                        <table id="table-constituencylistsize" class="table display" data-editable="false" data-dependson="constituency district candidatecategory districtquota"></table>
+                    </div>
+                    <div class="col-md-3 table-container">
+                        <h3>Metrics - Total Votes</h3>
+                        <table id="table-constituencytotalvotes" class="table display" data-editable="false" data-dependson="constituency votesperlist electorallist"></table>
+                    </div>
+                    <div class="col-md-3 table-container">
+                        <h3>Metrics - Initial Votes Threshold</h3>
+                        <table id="table-constituencyinitialthreshold" class="table display" data-editable="false" data-dependson="constituency district candidatecategory districtquota votesperlist electorallist"></table>
+                    </div>
+                    <div class="col-md-3 table-container">
+                        <h3>Metrics - Updated Total Votes</h3>
+                        <table id="table-constituencycountedvotes" class="table display" data-editable="false" data-dependson="constituency district candidatecategory districtquota votesperlist electorallist"></table>
+                    </div>
                 </div>
-                <div class="col-md-6 table-container">
-                    <h3>Candidates&nbsp;<a class="add-btn btn btn-default pull-right">&plus; Add</a></h3>
-                    <table id="table-candidate" class="table display" data-dependson="electorallist constituency district candidatecategory"></table>
+                <div class="row">
+                    <div class="col-md-6 table-container">
+                        <h3>Metrics - List Allocations</h3>
+                        <table id="table-listallocations" class="table display" data-editable="false" data-dependson="constituency district candidatecategory districtquota votesperlist electorallist"></table>
+                    </div>
+                    <div class="col-md-6 table-container">
+                        <h3>Metrics - Adjusted List Allocations</h3>
+                        <table id="table-adjustedlistallocations" class="table display" data-editable="false" data-dependson="constituency district candidatecategory districtquota votesperlist electorallist"></table>
+                    </div>
                 </div>
-            </div>
-            <div>
-                <div class="col-md-6 table-container">
-                    <h3>Results - List Votes&nbsp;<a class="add-btn btn btn-default pull-right">&plus; Add</a></h3>
-                    <table id="table-votesperlist" class="table display" data-dependson="constituency electorallist"></table>
+                <hr />
+                <div class="row">
+                    <div class="col-md-3 table-container">
+                        <h3>Metrics - Total Preferential Votes</h3>
+                        <table id="table-totalpreferentialvotes" class="table display" data-editable="false" data-dependson="constituency district candidatecategory districtquota votesperlist electorallist"></table>
+                    </div>
+                    <div class="col-md-9 table-container">
+                        <h3>Metrics - Sorted Preferential List</h3>
+                        <table id="table-sortedpreferentiallist" class="table display" data-editable="false" data-dependson="constituency district candidatecategory districtquota votesperlist electorallist"></table>
+                    </div>
                 </div>
-                <div class="col-md-6 table-container">
-                    <h3>Results - Preferential Votes&nbsp;<a class="add-btn btn btn-default pull-right">&plus; Add</a></h3>
-                    <table id="table-preferentialvote" class="table display" data-dependson="constituency candidate electorallist district candidatecategory"></table>
+                <div class="row">
+                    <div class="col-md-12 table-container">
+                        <h3>Final Results</h3>
+                        <table id="table-illustratedfinalresult" class="table display" data-editable="false" data-dependson="constituency district candidatecategory districtquota votesperlist electorallist"></table>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12 table-container">
+                        <h3>Winning Candidates</h3>
+                        <table id="table-finalresult" class="table display" data-editable="false" data-dependson="constituency district candidatecategory districtquota votesperlist electorallist"></table>
+                    </div>
                 </div>
             </div>
         </div> <!-- /container -->
