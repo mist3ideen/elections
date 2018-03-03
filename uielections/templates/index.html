@@ -1,0 +1,102 @@
+<!doctype html>
+<html class="no-js" lang="">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+        <title></title>
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+        <!-- Bootstrap css -->
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-daterangepicker/2.1.24/daterangepicker.min.css">
+        <link rel="stylesheet" href="https://cdn.datatables.net/1.10.15/css/jquery.dataTables.min.css">
+        <style>
+            body {
+                padding: 20px 0;
+            }
+        </style>
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/stats/dashboard.css') }}">
+
+        <script type="application/javascript">
+            var TABLES = {{ tables|tojson }};
+        </script>
+
+        <!--[if lt IE 9]>
+            <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+        <![endif]-->
+    </head>
+    <body>
+        <div class="fluid-container">
+            <div>
+                <div class="col-md-4 table-container">
+                    <h3>Constituency&nbsp;<a class="add-btn btn btn-default pull-right">&plus; Add</a></h3>
+                    <table id="table-constituency" class="table display"></table>
+                </div>
+                <div class="col-md-4 table-container">
+                    <h3>District&nbsp;<a class="add-btn btn btn-default pull-right">&plus; Add</a></h3>
+                    <table id="table-district" class="table display" data-dependson="constituency"></table>
+                </div>
+                <div class="col-md-4 table-container">
+                    <h3>Categories&nbsp;<a class="add-btn btn btn-default pull-right">&plus; Add</a></h3>
+                    <table id="table-candidatecategory" class="table display"></table>
+                </div>
+                <div class="col-md-12 table-container">
+                    <h3>Quotas&nbsp;<a class="add-btn btn btn-default pull-right">&plus; Add</a></h3>
+                    <table id="table-districtquota" class="table display" data-dependson="constituency district candidatecategory"></table>
+                </div>
+                <div class="col-md-6 table-container">
+                    <h3>Lists&nbsp;<a class="add-btn btn btn-default pull-right">&plus; Add</a></h3>
+                    <table id="table-electorallist" class="table display" data-dependson="constituency"></table>
+                </div>
+                <div class="col-md-6 table-container">
+                    <h3>Candidates&nbsp;<a class="add-btn btn btn-default pull-right">&plus; Add</a></h3>
+                    <table id="table-candidate" class="table display" data-dependson="electorallist constituency district candidatecategory"></table>
+                </div>
+            </div>
+            <div>
+                <div class="col-md-6 table-container">
+                    <h3>Results - List Votes&nbsp;<a class="add-btn btn btn-default pull-right">&plus; Add</a></h3>
+                    <table id="table-votesperlist" class="table display" data-dependson="constituency electorallist"></table>
+                </div>
+                <div class="col-md-6 table-container">
+                    <h3>Results - Preferential Votes&nbsp;<a class="add-btn btn btn-default pull-right">&plus; Add</a></h3>
+                    <table id="table-preferentialvote" class="table display" data-dependson="constituency candidate electorallist district candidatecategory"></table>
+                </div>
+            </div>
+        </div> <!-- /container -->
+
+        <div class="modal fade" tabindex="-1" role="dialog" id="edit-modal">
+          <div class="modal-dialog" role="document">
+            <div class="modal-content">
+              <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                <h4 class="modal-title">Edit</h4>
+              </div>
+              <div class="modal-body">
+                <p>One fine body&hellip;</p>
+                  <form class="formal simple form" role="form" name="delete_form" id="delete_form"></form>
+                  <form class="formal simple form" role="form" name="edit_form" id="edit_form"></form>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                <button type="submit" class="delete-btn btn btn-danger" form="delete_form">Delete</button>
+                <button type="submit" class="edit-btn btn btn-primary" form="edit_form">Save changes</button>
+              </div>
+            </div><!-- /.modal-content -->
+          </div><!-- /.modal-dialog -->
+        </div><!-- /.modal -->
+
+        <script src="//ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.15.1/moment.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-daterangepicker/2.1.24/daterangepicker.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.3.0/Chart.js"></script>
+        <script src="https://cdn.datatables.net/1.10.15/js/jquery.dataTables.min.js"></script>
+
+        <!-- Bootstrap script -->
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"></script>
+
+        <script src="{{ url_for('static', filename='formal.js') }}"></script>
+        <script src="{{ url_for('static', filename='index.js') }}"></script>
+    </body>
+</html>
