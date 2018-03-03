@@ -1,165 +1,105 @@
-var RENDER_MAP = {
-    'datetime': function(data, type, row) {
-        if (!data) {
-            return data;
-        }
-        var dt = moment(data);
-        return $('<div>').append($("<span/>").attr("title", dt.format()).text(dt.fromNow())).html();
-    },
-    'boolean': function(data, type, row) {
-        if (data === true) {
-            return '<span class="glyphicon glyphicon-check" aria-hidden="true"></span>';
-        } else if (data === false) {
-            return '<span class="glyphicon glyphicon-unchecked" aria-hidden="true"></span>';
-        } else {
-            return data;
-        }
-    },
-};
-function renderTable(tbl, metadata_url, table_id) {
-    $.get(metadata_url).success(function(response) {
-        var options = $.extend({}, response.datatables);
-        options.columns = $(options.columns).map(function(i, col) {
-            var ftype = col._type;
-            delete col._type;
-            var index = ftype.length;
-            while (index >= 0) {
-                var render = RENDER_MAP[ftype];
-                if (render) {
-                    col.render = render;
-                    break;
-                }
-                ftype = ftype.substring(0, index);
-                index = ftype.lastIndexOf(':');
-            }
-            return col;
-        });
-        var table = $(tbl).DataTable(options);
-        $(tbl).data("create_ajax", response.create.ajax);
-        $(tbl).data("fields", response.create.fields);
-    });
-}
 $(document).ready(function() {
-    var dependencyMap = {};
-    for (var tableId in TABLES) {
-        var tableUrl = TABLES[tableId];
-        var tbl = $('#table-' + tableId);
-        var ancestors = ($(tbl).data("dependson") || "").split(" ");
-        $.each(ancestors, function (i, el) {
-            var descendants = dependencyMap[el] || [];
-            descendants.push(tableId);
-            dependencyMap[el] = descendants;
-        });
-        tbl.data("table-id", tableId);
-        renderTable(tbl, tableUrl, tableId);
-    }
-    for (var tableId in TABLES) {
-        var tbl = $('#table-' + tableId);
-        $(tbl).data("descendants", dependencyMap[tableId] || []);
-    }
-    $(".table-container").on("click", "table tr", function(ev) {
-        ev.preventDefault();
-        var $form = $("#edit-modal form.formal#edit_form");
-        var $deleteForm = $("#edit-modal form.formal#delete_form");
-        var $table = $(this).parents("table");
+    var STORAGE_KEY_OPEN = "simulations";
+    var IFRAME_RESIZER_LOG = false;
 
-        if ($table.data('editable') === false) {
-            return false;
+    function makeTab(simulation) {
+        var $li = $('<li role="presentation" class="simulation"></li>');
+        var $a = $('<a href="" aria-controls="" role="tab" data-toggle="tab"></a>');
+        $a.attr("href", "#tab-pane-" + simulation);
+        $a.attr("aria-controls", "tab-pane-" + simulation);
+        $a.text("Sim #" + simulation);
+        $li.data("simulation", simulation);
+        $li.attr("id", "tab-" + simulation);
+        $li.append($a);
+        $a.append('<a class="remove-simulation-btn btn btn-xs" style="margin-left: 1em;">&cross;</a>');
+        return $li;
+    }
+
+    function makePane(simulation) {
+        var $div = $('<div role="tabpanel" class="tab-pane simulation" id=""></div>');
+        var $iframe = $('<iframe class="simulation" name="" id="" src="about:blank" frameborder="0" width="100%" scrolling="no"></iframe>');
+        $iframe.attr("name", "iframe_simulation_" + simulation);
+        $iframe.attr("id", "iframe_simulation_" + simulation);
+        $iframe.data("loaded", false);
+        $iframe.data("loading", false);
+        $div.attr("id", "tab-pane-" + simulation);
+        $div.data("simulation", simulation);
+        $div.append($iframe);
+        return $div;
+    }
+
+    function loadSimulations($tabs, $panes) {
+        var simulationsJson = localStorage.getItem(STORAGE_KEY_OPEN);
+        var simulations = simulationsJson? JSON.parse(simulationsJson) : [];
+        $.each(simulations, function(i, simulation) {
+            $tabs.append(makeTab(simulation));
+            $panes.append(makePane(simulation));
+        });
+    }
+
+    function addSimulation(simulation, $tabs, $panes) {
+        console.log("Adding", simulation);
+        var simulationsJson = localStorage.getItem(STORAGE_KEY_OPEN);
+        var simulations = simulationsJson? JSON.parse(simulationsJson) : [];
+        if (simulations.indexOf(simulation) < 0) {
+            simulations.push(simulation);
+            $tabs.append(makeTab(simulation));
+            $panes.append(makePane(simulation));
         }
+        localStorage.setItem(STORAGE_KEY_OPEN, JSON.stringify(simulations));
+    }
 
-        var table = $table.DataTable();
-        var data = table.row(this).data(); // .DT_RowData.fields_data;
-        var fieldsData = data.DT_RowData.fields_data;
+    function removeSimulation(simulation, $tabs, $panes) {
+        console.log("Removing", simulation);
+        var simulationsJson = localStorage.getItem(STORAGE_KEY_OPEN);
+        var simulations = simulationsJson? JSON.parse(simulationsJson) : [];
+        var index = simulations.indexOf(simulation);
+        if (index >= 0) {
+            simulations.splice(index, 1);
+            $tabs.children("li[id=tab-" + simulation + "]").remove();
+            $panes.children("div[id=tab-pane-" + simulation + "]").remove();
+        }
+        localStorage.setItem(STORAGE_KEY_OPEN, JSON.stringify(simulations));
+    }
 
-        $form.html("");
-        $form.attr("method", "POST");
-        $form.attr("action", data.DT_RowData.edit_ajax);
-        $form.data("table", table);
-        $form.data("table-id", $table.data("table-id"));
-        $.each($table.data("fields"), function(i, el) {
-            var $field;
-            if (el.choices) {
-                $field = $('<select name="">');
-                $.each(el.choices, function(j, op) {
-                    $field.append($('<option>').attr("value", op.id).text(op.name));
-                });
-                $field.prop('disabled', !el.visible || !el.editable);
-            } else {
-                $field = $('<input type="text" value="" name="">');
-            }
-            $field.attr("name", el.name);
-            $field.attr("id", "field-" + el.name);
-            $field.prop("readonly", !el.visible || !el.editable);
-            $field.val(fieldsData[el.name]);
-            var $div = $('<div class="form-group"></div>');
-            $div.append($("<label>").attr("for", "field-" + el.name).text(el.title));
-            $div.append($field);
-            $form.append($div);
-        });
+    function goToSimulation(simulation, $tabs, $panes) {
+        $tabs.find('li[id=tab-' + simulation + ']').tab('show');
+    }
 
-        $deleteForm.html("");
-        $deleteForm.attr("method", "POST");
-        $deleteForm.attr("action", data.DT_RowData.delete_ajax);
-        $deleteForm.data("table", table);
-        $deleteForm.data("table-id", $table.data("table-id"));
-        $("#edit-modal").modal();
-        return false;
-    }).on('click', '.add-btn', function (ev) {
+    $("#simulation-tabs").on("click", ".remove-simulation-btn", function (ev) {
         ev.preventDefault();
-        var $form = $("#edit-modal form.formal#edit_form");
-        var $table = $(this).parents(".table-container").find("table");
-        var table = $table.DataTable();
 
-        $form.html("");
-        $form.attr("method", "POST");
-        $form.attr("action", $table.data("create_ajax"));
-        $form.data("table", table);
-        $form.data("table-id", $table.data("table-id"));
-        $.each($table.data("fields"), function(i, el) {
-            var $field;
-            if (el.choices) {
-                $field = $('<select name="">');
-                $.each(el.choices, function(j, op) {
-                    $field.append($('<option>').attr("value", op.id).text(op.name));
-                });
-            } else {
-                $field = $('<input type="text" value="" name="">');
-            }
-            $field.attr("name", el.name);
-            $field.attr("id", "field-" + el.name);
-            $field.prop("readonly", !el.visible);
-            var $div = $('<div class="form-group"></div>');
-            $div.append($("<label>").attr("for", "field-" + el.name).text(el.title));
-            $div.append($field);
-            $form.append($div);
-        });
-        $("#edit-modal").modal();
+        var simulation = $(this).parents("li").data("simulation");
+        removeSimulation(simulation, $("#simulation-tabs"), $("#simulation-panes"));
 
+        $('#simulation-tabs a[data-toggle="tab"]:first').tab('show');
         return false;
-    });
-    $("#edit-modal form.formal#edit_form").data("formal-success", function () {
-        console.log("success");
-        $("#edit-modal").modal('hide');
-        var table = $("#edit-modal form.formal#edit_form").data("table");
-        var tableId = $("#edit-modal form.formal#edit_form").data("table-id");
-        table.ajax.reload(null, false);
-        var descendants = $("table#table-" + tableId).data("descendants");
-        $.each(descendants, function(i, el) {
-            var elTable = $("table#table-" + el).DataTable();
-            elTable.ajax.reload(null, false);
+    }).on('show.bs.tab', 'a[data-toggle="tab"]', function (e) {
+        var $oldTab = $(e.relatedTarget);
+        var $tab = $(e.target);
+        var $pane = $($tab.attr("href"));
+        var $iframe = $pane.find("iframe.simulation");
+        var simulation = $pane.data("simulation");
+        console.log("Showing", simulation);
+        if (!simulation || $iframe.data("loaded") || $iframe.data("loading")) {
+            return;
+        }
+        $pane.addClass("loading");
+        $iframe.data("loading", true);
+        $iframe.on("load error", function() {
+            $iframe.data("loaded", true);
+            $iframe.data("loading", false);
+            $pane.removeClass("loading");
+            var id = $iframe.attr("id");
+            iFrameResize({log: IFRAME_RESIZER_LOG}, '#' + id);
         });
+        $iframe.attr("src", "/simulation/" + simulation + "/");
     });
-    $("#edit-modal form.formal#delete_form").data("formal-success", function () {
-        console.log("success");
-        $("#edit-modal").modal('hide');
-        var table = $("#edit-modal form.formal#delete_form").data("table");
-        var tableId = $("#edit-modal form.formal#edit_form").data("table-id");
-        table.ajax.reload(null, false);
-        var descendants = $("table#table-" + tableId).data("descendants");
-        $.each(descendants, function(i, el) {
-            var elTable = $("table#table-" + el).DataTable();
-            elTable.ajax.reload(null, false);
-        });
+
+    $("form.formal#simulation-create-form").data("formal-success", function ($form, response) {
+        addSimulation(response.data.name, $("#simulation-tabs"), $("#simulation-panes"));
     });
     Formal.initAll();
+
+    loadSimulations($("#simulation-tabs"), $("#simulation-panes"));
 } );

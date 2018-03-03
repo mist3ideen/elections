@@ -1,5 +1,5 @@
 --
--- PostgreSQL database dump
+-- Modified PostgreSQL database dump
 --
 
 -- Dumped from database version 9.6.7
@@ -14,28 +14,7 @@ SET check_function_bodies = false;
 SET client_min_messages = warning;
 SET row_security = off;
 
---
--- Name: simulation; Type: SCHEMA; Schema: -; Owner: -
---
-
-CREATE SCHEMA simulation;
-
-
---
--- Name: plpgsql; Type: EXTENSION; Schema: -; Owner: -
---
-
-CREATE EXTENSION IF NOT EXISTS plpgsql WITH SCHEMA pg_catalog;
-
-
---
--- Name: EXTENSION plpgsql; Type: COMMENT; Schema: -; Owner: -
---
-
-COMMENT ON EXTENSION plpgsql IS 'PL/pgSQL procedural language';
-
-
-SET search_path = public, pg_catalog;
+-- SET search_path = public, pg_catalog;
 
 SET default_tablespace = '';
 
@@ -531,39 +510,6 @@ CREATE SEQUENCE smallcircles_id_seq
 ALTER SEQUENCE smallcircles_id_seq OWNED BY districts.id;
 
 
-SET search_path = simulation, pg_catalog;
-
---
--- Name: simulations; Type: TABLE; Schema: simulation; Owner: -
---
-
-CREATE TABLE simulations (
-    id integer NOT NULL,
-    schema_name character varying NOT NULL
-);
-
-
---
--- Name: simulations_id_seq; Type: SEQUENCE; Schema: simulation; Owner: -
---
-
-CREATE SEQUENCE simulations_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: simulations_id_seq; Type: SEQUENCE OWNED BY; Schema: simulation; Owner: -
---
-
-ALTER SEQUENCE simulations_id_seq OWNED BY simulations.id;
-
-
-SET search_path = public, pg_catalog;
-
 --
 -- Name: candidate_categories id; Type: DEFAULT; Schema: public; Owner: -
 --
@@ -599,17 +545,6 @@ ALTER TABLE ONLY districts ALTER COLUMN id SET DEFAULT nextval('smallcircles_id_
 ALTER TABLE ONLY electoral_lists ALTER COLUMN id SET DEFAULT nextval('electoral_lists_id_seq'::regclass);
 
 
-SET search_path = simulation, pg_catalog;
-
---
--- Name: simulations id; Type: DEFAULT; Schema: simulation; Owner: -
---
-
-ALTER TABLE ONLY simulations ALTER COLUMN id SET DEFAULT nextval('simulations_id_seq'::regclass);
-
-
-SET search_path = public, pg_catalog;
-
 --
 -- Name: bigcircles_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
@@ -621,17 +556,17 @@ SELECT pg_catalog.setval('bigcircles_id_seq', 30, true);
 -- Data for Name: candidate_categories; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-INSERT INTO candidate_categories VALUES (1, 'سني');
-INSERT INTO candidate_categories VALUES (2, 'شيعي');
-INSERT INTO candidate_categories VALUES (3, 'درزي');
-INSERT INTO candidate_categories VALUES (4, 'علوي');
-INSERT INTO candidate_categories VALUES (5, 'ماروني');
-INSERT INTO candidate_categories VALUES (6, 'روم كاثوليك');
-INSERT INTO candidate_categories VALUES (7, 'روم ارثوذكس');
-INSERT INTO candidate_categories VALUES (8, 'انجيلي');
-INSERT INTO candidate_categories VALUES (9, 'أرمن كاثوليك');
-INSERT INTO candidate_categories VALUES (10, 'أرمن ارثوذكس');
-INSERT INTO candidate_categories VALUES (11, 'أقليات');
+INSERT INTO candidate_categories VALUES (1, 'Sunni');
+INSERT INTO candidate_categories VALUES (3, 'Druze');
+INSERT INTO candidate_categories VALUES (4, 'Alawite');
+INSERT INTO candidate_categories VALUES (5, 'Maronite');
+INSERT INTO candidate_categories VALUES (6, 'Catholic');
+INSERT INTO candidate_categories VALUES (7, 'Orthodox');
+INSERT INTO candidate_categories VALUES (8, 'Protestant');
+INSERT INTO candidate_categories VALUES (9, 'Armenian Catholic');
+INSERT INTO candidate_categories VALUES (10, 'Armenian Orthodox');
+INSERT INTO candidate_categories VALUES (11, 'Minorities');
+INSERT INTO candidate_categories VALUES (2, 'Shiite');
 
 
 --
@@ -690,21 +625,21 @@ SELECT pg_catalog.setval('candidates_id_seq', 32, true);
 -- Data for Name: constituencies; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-INSERT INTO constituencies VALUES (16, 'بيروت الاولى');
-INSERT INTO constituencies VALUES (17, 'بيروت الثانية');
-INSERT INTO constituencies VALUES (18, 'الجنوب الاولى');
-INSERT INTO constituencies VALUES (19, 'الجنوب الثانية');
-INSERT INTO constituencies VALUES (20, 'الجنوب الثالثة');
-INSERT INTO constituencies VALUES (21, 'البقاع الأولى');
-INSERT INTO constituencies VALUES (22, 'البقاع الثانية');
-INSERT INTO constituencies VALUES (23, 'البقاع الثالثة');
-INSERT INTO constituencies VALUES (24, 'الشمال الأولى');
-INSERT INTO constituencies VALUES (25, 'الشمال الثانية');
-INSERT INTO constituencies VALUES (26, 'الشمال الثالثة');
-INSERT INTO constituencies VALUES (27, 'جبل لبنان الأولى');
-INSERT INTO constituencies VALUES (28, 'جبل لبنان الثانية');
-INSERT INTO constituencies VALUES (29, 'جبل لبنان الثالثة');
-INSERT INTO constituencies VALUES (30, 'جبل لبنان الرابعة');
+INSERT INTO constituencies VALUES (16, 'Beirut I');
+INSERT INTO constituencies VALUES (17, 'Beirut II');
+INSERT INTO constituencies VALUES (18, 'South I');
+INSERT INTO constituencies VALUES (21, 'Bekaa I');
+INSERT INTO constituencies VALUES (22, 'Bekaa II');
+INSERT INTO constituencies VALUES (23, 'Bekaa III');
+INSERT INTO constituencies VALUES (24, 'North I');
+INSERT INTO constituencies VALUES (27, 'Mount Lebanon I');
+INSERT INTO constituencies VALUES (30, 'Mount Lebanon IV');
+INSERT INTO constituencies VALUES (29, 'Mount Lebanon III');
+INSERT INTO constituencies VALUES (28, 'Mount Lebanon II');
+INSERT INTO constituencies VALUES (26, 'North III');
+INSERT INTO constituencies VALUES (19, 'South II');
+INSERT INTO constituencies VALUES (20, 'South III');
+INSERT INTO constituencies VALUES (25, 'North II');
 
 
 --
@@ -786,32 +721,32 @@ INSERT INTO district_quotas VALUES (26, 7, 1);
 -- Data for Name: districts; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-INSERT INTO districts VALUES (1, 'الأشرفية، الرميل، المدور، الصيفي', 16);
-INSERT INTO districts VALUES (2, 'رأس بيروت، دار المريسة، ميناء الحصن، زقاق البلاط، المزرعة، المصيطبة، المرفأ، الباشورة', 17);
-INSERT INTO districts VALUES (3, 'صيدا', 18);
-INSERT INTO districts VALUES (4, 'جزين', 18);
-INSERT INTO districts VALUES (5, 'صور', 19);
-INSERT INTO districts VALUES (6, 'قرى صيدا (الزهراني)', 19);
-INSERT INTO districts VALUES (7, 'بنت جبيل', 20);
-INSERT INTO districts VALUES (8, 'النبطية', 20);
-INSERT INTO districts VALUES (9, 'مرجعيون وحاصبيا', 20);
-INSERT INTO districts VALUES (10, 'زحلة', 21);
-INSERT INTO districts VALUES (11, 'راشيا والبقاع الغربي', 22);
-INSERT INTO districts VALUES (12, 'بعلبك الهرمل', 23);
-INSERT INTO districts VALUES (13, 'عكار', 24);
-INSERT INTO districts VALUES (14, 'طرابلس', 25);
-INSERT INTO districts VALUES (15, 'المنية', 25);
-INSERT INTO districts VALUES (16, 'الضنية', 25);
-INSERT INTO districts VALUES (17, 'زغرتا', 26);
-INSERT INTO districts VALUES (18, 'بشري', 26);
-INSERT INTO districts VALUES (19, 'الكورة', 26);
-INSERT INTO districts VALUES (20, 'البترون', 26);
-INSERT INTO districts VALUES (21, 'جبيل', 27);
-INSERT INTO districts VALUES (22, 'كسروان', 27);
-INSERT INTO districts VALUES (23, 'المتن', 28);
-INSERT INTO districts VALUES (24, 'بعبدا', 29);
-INSERT INTO districts VALUES (25, 'الشوف', 30);
-INSERT INTO districts VALUES (26, 'عاليه', 30);
+INSERT INTO districts VALUES (1, 'Beirut 1', 16);
+INSERT INTO districts VALUES (2, 'Beirut 2', 17);
+INSERT INTO districts VALUES (3, 'Sidon', 18);
+INSERT INTO districts VALUES (4, 'Jezzine', 18);
+INSERT INTO districts VALUES (5, 'Tyre', 19);
+INSERT INTO districts VALUES (6, 'Zahrani', 19);
+INSERT INTO districts VALUES (7, 'Bint Jbeil', 20);
+INSERT INTO districts VALUES (8, 'Nabatieh', 20);
+INSERT INTO districts VALUES (10, 'Zahle', 21);
+INSERT INTO districts VALUES (11, 'Rashaya / West Bekaa', 22);
+INSERT INTO districts VALUES (12, 'Baalbeck / Hermel', 23);
+INSERT INTO districts VALUES (13, 'Akkar', 24);
+INSERT INTO districts VALUES (14, 'Tripoli', 25);
+INSERT INTO districts VALUES (15, 'Minieh', 25);
+INSERT INTO districts VALUES (16, 'Dinnieh', 25);
+INSERT INTO districts VALUES (17, 'Zgharta', 26);
+INSERT INTO districts VALUES (18, 'Bsharri', 26);
+INSERT INTO districts VALUES (19, 'Koura', 26);
+INSERT INTO districts VALUES (20, 'Batroun', 26);
+INSERT INTO districts VALUES (21, 'Jbeil', 27);
+INSERT INTO districts VALUES (22, 'Keserouan', 27);
+INSERT INTO districts VALUES (23, 'Metn', 28);
+INSERT INTO districts VALUES (24, 'Baabda', 29);
+INSERT INTO districts VALUES (25, 'Chouf', 30);
+INSERT INTO districts VALUES (26, 'Aley', 30);
+INSERT INTO districts VALUES (9, 'Hasbaya / Marjayoun', 20);
 
 
 --
@@ -886,24 +821,6 @@ INSERT INTO votes_per_list VALUES (16, 3, 1000);
 INSERT INTO votes_per_list VALUES (16, 4, 30000);
 
 
-SET search_path = simulation, pg_catalog;
-
---
--- Data for Name: simulations; Type: TABLE DATA; Schema: simulation; Owner: -
---
-
-INSERT INTO simulations VALUES (2, 'public');
-
-
---
--- Name: simulations_id_seq; Type: SEQUENCE SET; Schema: simulation; Owner: -
---
-
-SELECT pg_catalog.setval('simulations_id_seq', 2, true);
-
-
-SET search_path = public, pg_catalog;
-
 --
 -- Name: constituencies bigcircles_pk; Type: CONSTRAINT; Schema: public; Owner: -
 --
@@ -967,18 +884,6 @@ ALTER TABLE ONLY districts
 ALTER TABLE ONLY votes_per_list
     ADD CONSTRAINT votes_per_list_un UNIQUE (constituency_id, electoral_list_id);
 
-
-SET search_path = simulation, pg_catalog;
-
---
--- Name: simulations simulations_pkey; Type: CONSTRAINT; Schema: simulation; Owner: -
---
-
-ALTER TABLE ONLY simulations
-    ADD CONSTRAINT simulations_pkey PRIMARY KEY (id);
-
-
-SET search_path = public, pg_catalog;
 
 --
 -- Name: candidates candidates_candidate_categories_FK; Type: FK CONSTRAINT; Schema: public; Owner: -

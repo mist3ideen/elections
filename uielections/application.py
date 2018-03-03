@@ -3,11 +3,14 @@ import calendar
 from datetime import datetime
 from decimal import Decimal, localcontext
 
-from flask import Flask, Blueprint, jsonify, url_for, request, render_template
+from flask import Flask, Blueprint, jsonify, url_for, request, render_template, g, current_app
 from flask.json import JSONEncoder
 from sqlalchemy_utils import escape_like
 from sqlalchemy import or_, func, Date
 from flask_sqlalchemy import SQLAlchemy
+from hashids import Hashids
+import random
+import string
 
 from .datatables import DataTable
 
@@ -16,8 +19,31 @@ ROFieldColumn = lambda *args, **kwargs: FieldColumn(*args, editable=False, visib
 noop_filter = lambda instance, value: value
 
 
+TEMPLATE_NAMES = (
+    'ar_dummy',
+    'en_dummy',
+    'ar_clean',
+    'en_clean',
+    'empty',
+)
+
+
 def getname_filter(model, field):
     return lambda instance, value: getattr(model.query.get(value), field)
+
+
+def create_hashid(intid):
+    hashids = Hashids(min_length=current_app.config['HASHIDS_MIN_LENGTH'], salt=current_app.config['HASHIDS_SECRET_KEY'])
+    hashid = hashids.encode(intid, current_app.config['HASHIDS_CANARY'])
+    return hashid
+
+
+def decode_hashid(hashid):
+    hashids = Hashids(min_length=current_app.config['HASHIDS_MIN_LENGTH'], salt=current_app.config['HASHIDS_SECRET_KEY'])
+    intid, canary = hashids.decode(hashid)
+    assert canary == current_app.config['HASHIDS_CANARY']
+    return intid
+
 
 class CustomJSONEncoder(JSONEncoder):
 
@@ -52,8 +78,9 @@ app.config.from_envvar('UIELECTIONS_CONFIG', silent=True)
 
 db = SQLAlchemy(app=app)
 
-dt = Blueprint('datatables', __name__)
+dt = Blueprint('datatables', __name__, url_prefix='/simulation/<simulation>')
 TABLES = {}
+
 
 class View:
     pass
@@ -70,8 +97,20 @@ def mynamedtuple(name, *field_args):
     return MyNamedTuple
 
 
+class Simulation(db.Model):
+    __tablename__ = 'simulations'
+    __table_args__ = {'schema': 'simulation'}
+
+    id = db.Column(db.Integer, primary_key=True)
+    schema_name_seed = db.Column('schema_name', db.String, nullable=False)
+
+    @property
+    def schema_name(self):
+        return 'sim_{}_{}'.format(self.id, self.schema_name_seed)
+
+
 class Constituency(db.Model):
-    __tablename__ = 'consituencies'  # TODO typo
+    __tablename__ = 'constituencies'
 
     FIELDS = [
         FieldColumn('id', 'ID', noop_filter, 'number', orderable=True, searchable=False, choices=None, visible=False, editable=False),
@@ -137,7 +176,7 @@ class ElectoralList(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.Unicode, nullable=False)
-    constituency_id = db.Column(db.Integer, db.ForeignKey('consituencies.id'), nullable=False)
+    constituency_id = db.Column(db.Integer, db.ForeignKey('constituencies.id'), nullable=False)
 
 
 class Candidate(db.Model):
@@ -172,7 +211,7 @@ class VotesPerList(db.Model):
         FieldColumn('value', 'Value', noop_filter, 'number', orderable=True, searchable=False, choices=None, visible=True, editable=True),
     ]
 
-    constituency_id = db.Column(db.Integer, db.ForeignKey('consituencies.id'), primary_key=True)
+    constituency_id = db.Column(db.Integer, db.ForeignKey('constituencies.id'), primary_key=True)
     electoral_list_id = db.Column(db.Integer, db.ForeignKey('electoral_lists.id'), primary_key=True)  # TODO handle blanks!
     value = db.Column(db.Integer, nullable=False)
 
@@ -190,7 +229,7 @@ class PreferentialVote(db.Model):
 
     _PreferentialVoteId = mynamedtuple('_PreferentialVoteId', 'constituency_id,candidate_id')
 
-    constituency_id = db.Column(db.Integer, db.ForeignKey('consituencies.id'), primary_key=True)
+    constituency_id = db.Column(db.Integer, db.ForeignKey('constituencies.id'), primary_key=True)
     candidate_id = db.Column(db.Integer, db.ForeignKey('candidates.id'), primary_key=True)
     value = db.Column(db.Integer, nullable=False)
 
@@ -207,7 +246,7 @@ class ConstituencyListSize(View, db.Model):
 
     id = db.synonym('constituency_id')
 
-    constituency_id = db.Column(db.Integer, db.ForeignKey('consituencies.id'), primary_key=True)
+    constituency_id = db.Column(db.Integer, db.ForeignKey('constituencies.id'), primary_key=True)
     list_size = db.Column(db.Integer, nullable=False)
 
 
@@ -221,7 +260,7 @@ class ConstituencyTotalVotes(View, db.Model):
 
     id = db.synonym('constituency_id')
 
-    constituency_id = db.Column(db.Integer, db.ForeignKey('consituencies.id'), primary_key=True)
+    constituency_id = db.Column(db.Integer, db.ForeignKey('constituencies.id'), primary_key=True)
     total_votes = db.Column(db.Integer, nullable=False)
 
 
@@ -235,7 +274,7 @@ class ConstituencyInitialThreshold(View, db.Model):
 
     id = db.synonym('constituency_id')
 
-    constituency_id = db.Column(db.Integer, db.ForeignKey('consituencies.id'), primary_key=True)
+    constituency_id = db.Column(db.Integer, db.ForeignKey('constituencies.id'), primary_key=True)
     list_threshold = db.Column(db.Integer, nullable=False)
 
 
@@ -249,7 +288,7 @@ class ConstituencyCountedVotes(View, db.Model):
 
     id = db.synonym('constituency_id')
 
-    constituency_id = db.Column(db.Integer, db.ForeignKey('consituencies.id'), primary_key=True)
+    constituency_id = db.Column(db.Integer, db.ForeignKey('constituencies.id'), primary_key=True)
     total_votes = db.Column(db.Integer, nullable=False)
 
 
@@ -281,8 +320,8 @@ class ListAllocations(View, db.Model):
 
     id = db.CompositeProperty(_ListAllocationsId, 'constituency_id', 'electoral_list_id')
 
-    constituency_id = db.Column(db.Integer, db.ForeignKey('consituencies.id'), primary_key=True)
-    electoral_list_id = db.Column(db.Integer, db.ForeignKey('consituencies.id'), primary_key=True)
+    constituency_id = db.Column(db.Integer, db.ForeignKey('constituencies.id'), primary_key=True)
+    electoral_list_id = db.Column(db.Integer, db.ForeignKey('constituencies.id'), primary_key=True)
     value = db.Column(db.Integer, nullable=False)
     votes_percentage_pre = db.Column(db.Numeric, nullable=False)
     passed_threshold = db.Column(db.Boolean, nullable=False)
@@ -304,8 +343,8 @@ class AdjustedListAllocations(View, db.Model):
 
     id = db.CompositeProperty(_ListAllocationsId, 'constituency_id', 'electoral_list_id')
 
-    constituency_id = db.Column(db.Integer, db.ForeignKey('consituencies.id'), primary_key=True)
-    electoral_list_id = db.Column(db.Integer, db.ForeignKey('consituencies.id'), primary_key=True)
+    constituency_id = db.Column(db.Integer, db.ForeignKey('constituencies.id'), primary_key=True)
+    electoral_list_id = db.Column(db.Integer, db.ForeignKey('constituencies.id'), primary_key=True)
     # allocated_seats = db.Column('sum', db.Integer, nullable=False)
     allocated_seats = db.Column(db.Integer, nullable=False)
 
@@ -345,7 +384,7 @@ class SortedPreferentialList(View, db.Model):
     id = db.CompositeProperty(_SortedPreferentialId, 'rowno', 'constituency_id')
 
     rowno = db.Column(db.Integer, primary_key=True)
-    constituency_id = db.Column(db.Integer, db.ForeignKey('consituencies.id'))
+    constituency_id = db.Column(db.Integer, db.ForeignKey('constituencies.id'))
     district_id = db.Column(db.Integer, db.ForeignKey('districts.id'))
     candidate_id = db.Column(db.Integer, db.ForeignKey('candidates.id'))
     category_id = db.Column(db.Integer, db.ForeignKey('candidate_categories.id'))
@@ -382,7 +421,7 @@ class IllustratedFinalResult(View, db.Model):
     id = db.CompositeProperty(_SortedPreferentialId, 'rowno', 'constituency_id')
 
     rowno = db.Column(db.Integer, primary_key=True)
-    constituency_id = db.Column(db.Integer, db.ForeignKey('consituencies.id'))
+    constituency_id = db.Column(db.Integer, db.ForeignKey('constituencies.id'))
     district_id = db.Column(db.Integer, db.ForeignKey('districts.id'))
     candidate_id = db.Column(db.Integer, db.ForeignKey('candidates.id'))
     category_id = db.Column(db.Integer, db.ForeignKey('candidate_categories.id'))
@@ -407,18 +446,12 @@ class FinalResult(View, db.Model):
 
     id = db.synonym('candidate_id')
 
-    constituency_id = db.Column(db.Integer, db.ForeignKey('consituencies.id'))
+    constituency_id = db.Column(db.Integer, db.ForeignKey('constituencies.id'))
     district_id = db.Column(db.Integer, db.ForeignKey('districts.id'))
     candidate_id = db.Column(db.Integer, db.ForeignKey('candidates.id'), primary_key=True)
     category_id = db.Column(db.Integer, db.ForeignKey('candidate_categories.id'))
     electoral_list_id = db.Column(db.Integer, db.ForeignKey('electoral_lists.id'))
     preferential_percentage = db.Column(db.Numeric)
-
-
-@app.route('/')
-def index():
-    tables = {k: v() for k, v in TABLES.items()}
-    return render_template('index.html', tables=tables)
 
 
 def datatables_meta(fields, route):
@@ -562,6 +595,84 @@ def potato(dt, _model):
         return jsonify(datatables_delete(_model, mid, _route_name))
 
     TABLES[_route_name] = lambda rn=_route_name: url_for('datatables.meta_{}'.format(rn), _external=True)
+
+
+def escape_schema_name(schema_name):
+    engine = db.engine
+    preparer = engine.dialect.identifier_preparer
+    return preparer.quote(schema_name, True)
+
+
+def initialize_schema(schema_name, template_name='ar_dummy', checkfirst=True):
+    assert template_name in TEMPLATE_NAMES
+    if_exists = " IF NOT EXISTS " if checkfirst else ""
+    sql_queries = render_template('simulation-templates/{}.sql.j2'.format(template_name))
+
+    # conn = db.engine.raw_connection()
+    # cur = conn.cursor()
+    cur = db.session.connection().connection.cursor()
+    cur.execute("CREATE SCHEMA {}{}".format(if_exists, escape_schema_name(schema_name)))
+    cur.execute("SET search_path = {}, pg_catalog;".format(escape_schema_name(schema_name)))
+    cur.execute(sql_queries)
+    # cur.execute("COMMIT")
+
+
+def humanize(template_name):
+    return ' '.join(t.upper() if len(t) <= 2 else t.title() for t in template_name.split('_'))
+
+
+@app.route('/')
+def index():
+    return render_template(
+        'index.html',
+        create_simulation_url=url_for('.create_simulation', _external=True),
+        template_options=[(t, humanize(t)) for t in TEMPLATE_NAMES]
+    )
+
+
+@app.route('/simulation', methods=['POST'])
+def create_simulation():
+    rdm = random.SystemRandom()
+    schema_name_seed = ''.join(rdm.choice(string.ascii_lowercase) for _ in range(10))
+    simulation = Simulation(schema_name_seed=schema_name_seed)
+    db.session.add(simulation)
+    db.session.flush()
+    initialize_schema(simulation.schema_name, template_name=request.form.get('template_name') or 'ar_dummy')
+    db.session.commit()
+
+    return jsonify({
+        'data': {
+            'name': create_hashid(simulation.id)
+        },
+        'success': True,
+    })
+
+
+@dt.route('/')
+def simulation_iframe():
+    tables = {k: v() for k, v in TABLES.items()}
+    return render_template('simulation.html', tables=tables)
+
+
+@dt.url_value_preprocessor
+def with_simulation_name(endpoint, values):
+    simulation_hashid = values.pop('simulation')
+    simulation_id = decode_hashid(simulation_hashid)
+    assert simulation_id is not None and simulation_id > 0
+    g.simulation = simulation = Simulation.query.get(simulation_id)
+    assert simulation is not None
+
+
+@dt.before_request
+def setup_schema_search_path():
+    # print("Set schema search path to", g.simulation.schema_name)
+    db.session.execute("SET search_path = {};".format(escape_schema_name(g.simulation.schema_name)))
+
+
+@dt.url_defaults
+def default_simulation_name(endpoint, values):
+    if endpoint.startswith(dt.name + '.'):
+        values.setdefault('simulation', create_hashid(g.simulation.id))
 
 
 potato(dt, Constituency)
