@@ -343,7 +343,7 @@ CREATE VIEW results_adjusted_list_allocations AS
             rt.electoral_list_id,
             rt.list_size,
             rt.data_d,
-            (COALESCE(lag(rt.data_d) OVER (PARTITION BY rt.constituency_id order by rt.iteration asc), (rt.list_size)::numeric) - GREATEST(rt.data_d, (0)::numeric)) AS data_e
+            (COALESCE(lag(rt.data_d) OVER (PARTITION BY rt.constituency_id ORDER BY rt.iteration, rt.data_a DESC), (rt.list_size)::numeric) - GREATEST(rt.data_d, (0)::numeric)) AS data_e
            FROM rt
         )
  SELECT rt2.constituency_id,
@@ -361,9 +361,10 @@ CREATE VIEW results_adjusted_list_allocations AS
 CREATE VIEW results_total_preferential_votes AS
  SELECT d.id AS district_id,
     sum(pv.value) AS total_votes
-   FROM ((preferential_votes pv
+   FROM (((preferential_votes pv
      JOIN candidates ca ON ((ca.id = pv.candidate_id)))
      JOIN districts d ON ((d.id = ca.district_id)))
+     JOIN results_list_allocations rla ON (((rla.passed_threshold = true) AND (rla.constituency_id = d.constituency_id) AND (ca.electoral_list_id = rla.electoral_list_id))))
   GROUP BY d.id;
 
 
@@ -450,15 +451,15 @@ CREATE VIEW results_preferential AS
                 END AS preferential_percentage,
                 CASE
                     WHEN (allocations.rowno = rspl.rowno) THEN allocations.data_a
-                    ELSE (LEAST((rspl.district_category_quota - lag(allocations.data_b, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.district_id, rspl.category_id ORDER BY rspl.preferential_percentage DESC)), (rspl.allocated_seats - lag(allocations.data_c, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.district_id, rspl.electoral_list_id ORDER BY rspl.preferential_percentage DESC))) > 0)
+                    ELSE (LEAST((rspl.district_category_quota - lag(allocations.data_b, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.district_id, rspl.category_id ORDER BY rspl.preferential_percentage DESC)), (rspl.allocated_seats - lag(allocations.data_c, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.electoral_list_id ORDER BY rspl.preferential_percentage DESC))) > 0)
                 END AS data_a,
                 CASE
                     WHEN (allocations.rowno = rspl.rowno) THEN allocations.data_b
-                    ELSE (lag(allocations.data_b, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.district_id, rspl.category_id ORDER BY rspl.preferential_percentage DESC) + ((LEAST((rspl.district_category_quota - lag(allocations.data_b, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.district_id, rspl.category_id ORDER BY rspl.preferential_percentage DESC)), (rspl.allocated_seats - lag(allocations.data_c, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.district_id, rspl.electoral_list_id ORDER BY rspl.preferential_percentage DESC))) > 0))::integer)
+                    ELSE (lag(allocations.data_b, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.district_id, rspl.category_id ORDER BY rspl.preferential_percentage DESC) + ((LEAST((rspl.district_category_quota - lag(allocations.data_b, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.district_id, rspl.category_id ORDER BY rspl.preferential_percentage DESC)), (rspl.allocated_seats - lag(allocations.data_c, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.electoral_list_id ORDER BY rspl.preferential_percentage DESC))) > 0))::integer)
                 END AS data_b,
                 CASE
                     WHEN (allocations.rowno = rspl.rowno) THEN allocations.data_c
-                    ELSE (lag(allocations.data_c, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.district_id, rspl.electoral_list_id ORDER BY rspl.preferential_percentage DESC) + ((LEAST((rspl.district_category_quota - lag(allocations.data_b, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.district_id, rspl.category_id ORDER BY rspl.preferential_percentage DESC)), (rspl.allocated_seats - lag(allocations.data_c, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.district_id, rspl.electoral_list_id ORDER BY rspl.preferential_percentage DESC))) > 0))::integer)
+                    ELSE (lag(allocations.data_c, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.electoral_list_id ORDER BY rspl.preferential_percentage DESC) + ((LEAST((rspl.district_category_quota - lag(allocations.data_b, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.district_id, rspl.category_id ORDER BY rspl.preferential_percentage DESC)), (rspl.allocated_seats - lag(allocations.data_c, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.electoral_list_id ORDER BY rspl.preferential_percentage DESC))) > 0))::integer)
                 END AS data_c,
             lag(allocations.data_b, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.district_id, rspl.category_id ORDER BY rspl.preferential_percentage DESC) AS debug_d
            FROM (allocations
