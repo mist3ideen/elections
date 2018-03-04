@@ -322,7 +322,7 @@ CREATE VIEW results_adjusted_list_allocations AS
             rt.electoral_list_id,
             rt.list_size,
             rt.data_d,
-            (COALESCE(lag(rt.data_d) OVER (PARTITION BY rt.constituency_id), (rt.list_size)::numeric) - GREATEST(rt.data_d, (0)::numeric)) AS data_e
+            (COALESCE(lag(rt.data_d) OVER (PARTITION BY rt.constituency_id order by rt.iteration asc), (rt.list_size)::numeric) - GREATEST(rt.data_d, (0)::numeric)) AS data_e
            FROM rt
         )
  SELECT rt2.constituency_id,
