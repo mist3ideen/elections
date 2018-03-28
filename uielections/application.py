@@ -25,6 +25,7 @@ TEMPLATE_NAMES = (
     'ar_clean',
     'en_clean',
     'empty',
+    'ar_real_data_20180328',
 )
 
 
@@ -505,6 +506,7 @@ def datatables_list(model, fields, route):
     def search(queryset, user_input):
         if user_input is None or user_input == u'':
             return None
+        # TODO joins and type checks for the queries where possible
         queryset = queryset.filter(or_(*(
             getattr(model, f.name).ilike(u'%{}%'.format(escape_like(str(user_input))))
             for f in fields
@@ -606,7 +608,7 @@ def escape_schema_name(schema_name):
 def initialize_schema(schema_name, template_name='ar_dummy', checkfirst=True):
     assert template_name in TEMPLATE_NAMES
     if_exists = " IF NOT EXISTS " if checkfirst else ""
-    sql_queries = render_template('simulation-templates/{}.sql.j2'.format(template_name))
+    sql_queries = render_template('simulation-templates/{}.sql.j2'.format(template_name))  # TODO we are not using it as a jinja2 template
 
     # conn = db.engine.raw_connection()
     # cur = conn.cursor()

@@ -1,0 +1,1582 @@
+--
+-- Modified PostgreSQL database dump
+--
+
+-- Dumped from database version 9.6.7
+-- Dumped by pg_dump version 9.6.7
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SET check_function_bodies = false;
+SET client_min_messages = warning;
+SET row_security = off;
+
+-- SET search_path = public, pg_catalog;
+
+SET default_tablespace = '';
+
+SET default_with_oids = false;
+
+--
+-- Name: constituencies; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE constituencies (
+    id integer NOT NULL,
+    name character varying NOT NULL
+);
+
+
+--
+-- Name: bigcircles_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE bigcircles_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: bigcircles_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE bigcircles_id_seq OWNED BY constituencies.id;
+
+
+--
+-- Name: candidate_categories; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE candidate_categories (
+    id integer NOT NULL,
+    name character varying NOT NULL
+);
+
+
+--
+-- Name: candidate_categories_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE candidate_categories_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: candidate_categories_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE candidate_categories_id_seq OWNED BY candidate_categories.id;
+
+
+--
+-- Name: candidates; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE candidates (
+    id integer NOT NULL,
+    name character varying NOT NULL,
+    district_id integer NOT NULL,
+    electoral_list_id integer NOT NULL,
+    category_id integer NOT NULL
+);
+
+
+--
+-- Name: candidates_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE candidates_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: candidates_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE candidates_id_seq OWNED BY candidates.id;
+
+
+--
+-- Name: district_quotas; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE district_quotas (
+    district_id integer NOT NULL,
+    category_id integer NOT NULL,
+    value integer NOT NULL
+);
+
+
+--
+-- Name: districts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE districts (
+    id integer NOT NULL,
+    name character varying NOT NULL,
+    constituency_id integer NOT NULL
+);
+
+
+--
+-- Name: constituency_list_size; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW constituency_list_size AS
+ SELECT c.id AS constituency_id,
+    sum(COALESCE(dq.value, 0)) AS list_size
+   FROM (((districts d
+     CROSS JOIN candidate_categories cc)
+     JOIN constituencies c ON ((c.id = d.constituency_id)))
+     JOIN ( SELECT d1.id AS district_id,
+            cc1.id AS category_id,
+            COALESCE(dq1.value, 0) AS value
+           FROM ((districts d1
+             CROSS JOIN candidate_categories cc1)
+             LEFT JOIN district_quotas dq1 ON (((dq1.category_id = cc1.id) AND (dq1.district_id = d1.id))))) dq ON (((dq.category_id = cc.id) AND (dq.district_id = d.id))))
+  GROUP BY c.id, c.name
+  ORDER BY c.id;
+
+
+--
+-- Name: constituency_quota_list; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW constituency_quota_list AS
+ SELECT 'Constituency'::character varying AS constituency_name,
+    'District'::character varying AS district_name,
+    'Total'::character varying AS total,
+    array_agg(cc.name ORDER BY cc.id DESC) AS quota_arr
+   FROM candidate_categories cc
+UNION ALL
+( SELECT c.name AS constituency_name,
+    d.name AS district_name,
+    (sum(COALESCE(dq.value, 0)))::character varying AS total,
+    array_agg((COALESCE(dq.value, 0))::character varying ORDER BY dq.category_id) AS quota_arr
+   FROM (((districts d
+     CROSS JOIN candidate_categories cc)
+     JOIN constituencies c ON ((c.id = d.constituency_id)))
+     JOIN ( SELECT d1.id AS district_id,
+            cc1.id AS category_id,
+            COALESCE(dq1.value, 0) AS value
+           FROM ((districts d1
+             CROSS JOIN candidate_categories cc1)
+             LEFT JOIN district_quotas dq1 ON (((dq1.category_id = cc1.id) AND (dq1.district_id = d1.id))))) dq ON (((dq.category_id = cc.id) AND (dq.district_id = d.id))))
+  GROUP BY c.id, c.name, d.id, d.name
+  ORDER BY c.id, d.id);
+
+
+--
+-- Name: votes_per_list; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE votes_per_list (
+    constituency_id integer NOT NULL,
+    electoral_list_id integer,
+    value integer NOT NULL
+);
+
+
+--
+-- Name: constituency_total_votes; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW constituency_total_votes AS
+ SELECT vpl.constituency_id,
+    sum(vpl.value) AS total_votes
+   FROM votes_per_list vpl
+  GROUP BY vpl.constituency_id;
+
+
+--
+-- Name: electoral_lists; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE electoral_lists (
+    id integer NOT NULL,
+    name character varying NOT NULL,
+    constituency_id integer NOT NULL
+);
+
+
+--
+-- Name: electoral_lists_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE electoral_lists_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: electoral_lists_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE electoral_lists_id_seq OWNED BY electoral_lists.id;
+
+
+--
+-- Name: preferential_votes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE preferential_votes (
+    constituency_id integer NOT NULL,
+    candidate_id integer NOT NULL,
+    value integer NOT NULL
+);
+
+
+--
+-- Name: results_constituency_threshold; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW results_constituency_threshold AS
+ SELECT ctv.constituency_id,
+    ((1.0 * (ctv.total_votes)::numeric) / (cls.list_size)::numeric) AS list_threshold
+   FROM (constituency_list_size cls
+     JOIN constituency_total_votes ctv ON ((ctv.constituency_id = cls.constituency_id)));
+
+
+--
+-- Name: results_constituency_total_votes; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW results_constituency_total_votes AS
+ SELECT vpl.constituency_id,
+    sum(vpl.value) AS total_votes
+   FROM (votes_per_list vpl
+     JOIN results_constituency_threshold rct ON ((rct.constituency_id = vpl.constituency_id)))
+  WHERE ((vpl.value)::numeric > rct.list_threshold)
+  GROUP BY vpl.constituency_id;
+
+
+--
+-- Name: results_list_allocations; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW results_list_allocations AS
+ SELECT vpl.constituency_id,
+    vpl.electoral_list_id,
+    vpl.value,
+    ((100.0 * (vpl.value)::numeric) / (ctv.total_votes)::numeric) AS votes_percentage_pre,
+    ((vpl.value)::numeric > rct.list_threshold) AS passed_threshold,
+    ((100.0 * (vpl.value)::numeric) / (rctv.total_votes)::numeric) AS votes_percentage_post,
+    (((1.0 * (vpl.value)::numeric) / (rctv.total_votes)::numeric) * (cls.list_size)::numeric) AS allocated_seats,
+    cls.list_size
+   FROM ((((votes_per_list vpl
+     JOIN constituency_total_votes ctv ON ((ctv.constituency_id = vpl.constituency_id)))
+     JOIN results_constituency_threshold rct ON ((rct.constituency_id = vpl.constituency_id)))
+     JOIN constituency_list_size cls ON ((cls.constituency_id = vpl.constituency_id)))
+     JOIN results_constituency_total_votes rctv ON ((rctv.constituency_id = vpl.constituency_id)))
+  ORDER BY vpl.value DESC;
+
+
+--
+-- Name: results_adjusted_list_allocations; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW results_adjusted_list_allocations AS
+ WITH RECURSIVE rt(iteration, constituency_id, electoral_list_id, list_size, votes_percentage_post, data_a, data_b, data_c, data_d) AS (
+         SELECT (0)::bigint AS int8,
+            results_list_allocations.constituency_id,
+            results_list_allocations.electoral_list_id,
+            results_list_allocations.list_size,
+            results_list_allocations.votes_percentage_post,
+            floor(results_list_allocations.allocated_seats) AS floor,
+            ((results_list_allocations.allocated_seats - floor(results_list_allocations.allocated_seats)) * (10)::numeric),
+            results_list_allocations.votes_percentage_post,
+            ((results_list_allocations.list_size)::numeric - sum(floor(results_list_allocations.allocated_seats)) OVER (PARTITION BY results_list_allocations.constituency_id ORDER BY results_list_allocations.votes_percentage_post DESC))
+           FROM results_list_allocations
+          WHERE (results_list_allocations.passed_threshold = true)
+        UNION ALL
+         SELECT (rt.iteration + 1),
+            rt.constituency_id,
+            rt.electoral_list_id,
+            rt.list_size,
+            rt.votes_percentage_post,
+            floor(rt.data_b) AS floor,
+            ((rt.data_b - floor(rt.data_b)) * (10)::numeric),
+            0,
+            (min(rt.data_d) OVER (PARTITION BY rt.constituency_id) - sum(floor(rt.data_b)) OVER (PARTITION BY rt.constituency_id ORDER BY rt.data_b DESC))
+           FROM rt
+          WHERE (rt.data_d > (0)::numeric)
+        ), rt2 AS (
+         SELECT rt.constituency_id,
+            rt.electoral_list_id,
+            rt.list_size,
+            rt.data_d,
+            (COALESCE(lag(rt.data_d) OVER (PARTITION BY rt.constituency_id ORDER BY rt.iteration, rt.data_a DESC), (rt.list_size)::numeric) - GREATEST(rt.data_d, (0)::numeric)) AS data_e
+           FROM rt
+        )
+ SELECT rt2.constituency_id,
+    rt2.electoral_list_id,
+    sum(rt2.data_e) AS allocated_seats
+   FROM rt2
+  WHERE (rt2.data_e > (0)::numeric)
+  GROUP BY rt2.constituency_id, rt2.electoral_list_id;
+
+
+--
+-- Name: results_total_preferential_votes; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW results_total_preferential_votes AS
+ SELECT d.id AS district_id,
+    sum(pv.value) AS total_votes
+   FROM (((preferential_votes pv
+     JOIN candidates ca ON ((ca.id = pv.candidate_id)))
+     JOIN districts d ON ((d.id = ca.district_id)))
+     JOIN results_list_allocations rla ON (((rla.passed_threshold = true) AND (rla.constituency_id = d.constituency_id) AND (ca.electoral_list_id = rla.electoral_list_id))))
+  GROUP BY d.id;
+
+
+--
+-- Name: results_sorted_preferential_list; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW results_sorted_preferential_list AS
+ SELECT rank() OVER (ORDER BY ((100.0 * (pv.value)::numeric) / (rtpv.total_votes)::numeric) DESC) AS rowno,
+    co.id AS constituency_id,
+    d.id AS district_id,
+    ca.id AS candidate_id,
+    ca.category_id,
+    ca.electoral_list_id,
+    COALESCE(dq.value, 0) AS district_category_quota,
+    (rla.allocated_seats)::integer AS allocated_seats,
+    ((100.0 * (pv.value)::numeric) / (rtpv.total_votes)::numeric) AS preferential_percentage
+   FROM ((((((candidates ca
+     JOIN districts d ON ((d.id = ca.district_id)))
+     JOIN constituencies co ON ((co.id = d.constituency_id)))
+     JOIN preferential_votes pv ON ((pv.candidate_id = ca.id)))
+     JOIN results_total_preferential_votes rtpv ON ((rtpv.district_id = d.id)))
+     LEFT JOIN district_quotas dq ON (((dq.category_id = ca.category_id) AND (dq.district_id = ca.district_id))))
+     JOIN results_adjusted_list_allocations rla ON ((rla.electoral_list_id = ca.electoral_list_id)))
+  ORDER BY ((100.0 * (pv.value)::numeric) / (rtpv.total_votes)::numeric) DESC;
+
+
+--
+-- Name: results_preferential; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW results_preferential AS
+ WITH RECURSIVE allocations(iteration, rowno, constituency_id, district_id, candidate_id, category_id, electoral_list_id, district_category_quota, allocated_seats, preferential_percentage, data_a, data_b, data_c, debug_d) AS (
+        ( SELECT (0)::bigint AS int8,
+            results_sorted_preferential_list.rowno,
+            results_sorted_preferential_list.constituency_id,
+            results_sorted_preferential_list.district_id,
+            results_sorted_preferential_list.candidate_id,
+            results_sorted_preferential_list.category_id,
+            results_sorted_preferential_list.electoral_list_id,
+            results_sorted_preferential_list.district_category_quota,
+            results_sorted_preferential_list.allocated_seats,
+            results_sorted_preferential_list.preferential_percentage,
+            (LEAST((results_sorted_preferential_list.district_category_quota - 0), (results_sorted_preferential_list.allocated_seats - 0)) > 0) AS data_a,
+            (0 + ((LEAST((results_sorted_preferential_list.district_category_quota - 0), (results_sorted_preferential_list.allocated_seats - 0)) > 0))::integer) AS data_b,
+            (0 + ((LEAST((results_sorted_preferential_list.district_category_quota - 0), (results_sorted_preferential_list.allocated_seats - 0)) > 0))::integer) AS data_c,
+            (0)::bigint AS debug_d
+           FROM results_sorted_preferential_list
+         LIMIT 1)
+        UNION ALL
+         SELECT (allocations.iteration + 1),
+            rspl.rowno,
+                CASE
+                    WHEN (allocations.rowno = rspl.rowno) THEN allocations.constituency_id
+                    ELSE rspl.constituency_id
+                END AS constituency_id,
+                CASE
+                    WHEN (allocations.rowno = rspl.rowno) THEN allocations.district_id
+                    ELSE rspl.district_id
+                END AS district_id,
+                CASE
+                    WHEN (allocations.rowno = rspl.rowno) THEN allocations.candidate_id
+                    ELSE rspl.candidate_id
+                END AS candidate_id,
+                CASE
+                    WHEN (allocations.rowno = rspl.rowno) THEN allocations.category_id
+                    ELSE rspl.category_id
+                END AS category_id,
+                CASE
+                    WHEN (allocations.rowno = rspl.rowno) THEN allocations.electoral_list_id
+                    ELSE rspl.electoral_list_id
+                END AS electoral_list_id,
+                CASE
+                    WHEN (allocations.rowno = rspl.rowno) THEN allocations.district_category_quota
+                    ELSE rspl.district_category_quota
+                END AS district_category_quota,
+                CASE
+                    WHEN (allocations.rowno = rspl.rowno) THEN allocations.allocated_seats
+                    ELSE rspl.allocated_seats
+                END AS allocated_seats,
+                CASE
+                    WHEN (allocations.rowno = rspl.rowno) THEN allocations.preferential_percentage
+                    ELSE rspl.preferential_percentage
+                END AS preferential_percentage,
+                CASE
+                    WHEN (allocations.rowno = rspl.rowno) THEN allocations.data_a
+                    ELSE (LEAST((rspl.district_category_quota - lag(allocations.data_b, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.district_id, rspl.category_id ORDER BY rspl.preferential_percentage DESC)), (rspl.allocated_seats - lag(allocations.data_c, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.electoral_list_id ORDER BY rspl.preferential_percentage DESC))) > 0)
+                END AS data_a,
+                CASE
+                    WHEN (allocations.rowno = rspl.rowno) THEN allocations.data_b
+                    ELSE (lag(allocations.data_b, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.district_id, rspl.category_id ORDER BY rspl.preferential_percentage DESC) + ((LEAST((rspl.district_category_quota - lag(allocations.data_b, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.district_id, rspl.category_id ORDER BY rspl.preferential_percentage DESC)), (rspl.allocated_seats - lag(allocations.data_c, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.electoral_list_id ORDER BY rspl.preferential_percentage DESC))) > 0))::integer)
+                END AS data_b,
+                CASE
+                    WHEN (allocations.rowno = rspl.rowno) THEN allocations.data_c
+                    ELSE (lag(allocations.data_c, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.electoral_list_id ORDER BY rspl.preferential_percentage DESC) + ((LEAST((rspl.district_category_quota - lag(allocations.data_b, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.district_id, rspl.category_id ORDER BY rspl.preferential_percentage DESC)), (rspl.allocated_seats - lag(allocations.data_c, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.electoral_list_id ORDER BY rspl.preferential_percentage DESC))) > 0))::integer)
+                END AS data_c,
+            lag(allocations.data_b, 1, 0) OVER (PARTITION BY rspl.constituency_id, rspl.district_id, rspl.category_id ORDER BY rspl.preferential_percentage DESC) AS debug_d
+           FROM (allocations
+             LEFT JOIN results_sorted_preferential_list rspl ON (((rspl.rowno = allocations.rowno) OR ((rspl.rowno = (allocations.iteration + 2)) AND (rspl.rowno = (allocations.rowno + 1))))))
+        ), ayret AS (
+         SELECT allocations.iteration,
+            allocations.rowno,
+            allocations.constituency_id,
+            allocations.district_id,
+            allocations.candidate_id,
+            allocations.category_id,
+            allocations.electoral_list_id,
+            allocations.district_category_quota,
+            allocations.allocated_seats,
+            allocations.preferential_percentage,
+            allocations.data_a,
+            allocations.data_b,
+            allocations.data_c,
+            allocations.debug_d
+           FROM allocations
+         LIMIT 1000
+        )
+ SELECT a.constituency_id,
+    a.district_id,
+    a.candidate_id,
+    a.category_id,
+    a.electoral_list_id,
+    a.preferential_percentage
+   FROM ayret a
+  WHERE ((a.data_a IS TRUE) AND (a.iteration = ( SELECT (max(ayret.iteration) - 1) AS max_iteration
+           FROM ayret)))
+  ORDER BY a.rowno;
+
+
+--
+-- Name: results_preferential_illustrated; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW results_preferential_illustrated AS
+ SELECT rspl.rowno,
+    rspl.constituency_id,
+    rspl.district_id,
+    rspl.candidate_id,
+    rspl.category_id,
+    rspl.electoral_list_id,
+    rspl.district_category_quota,
+    rspl.allocated_seats,
+    rspl.preferential_percentage,
+    (rp.candidate_id IS NOT NULL) AS winning
+   FROM (results_sorted_preferential_list rspl
+     LEFT JOIN results_preferential rp ON ((rp.candidate_id = rspl.candidate_id)));
+
+
+--
+-- Name: smallcircles_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE smallcircles_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: smallcircles_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE smallcircles_id_seq OWNED BY districts.id;
+
+
+--
+-- Name: candidate_categories id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY candidate_categories ALTER COLUMN id SET DEFAULT nextval('candidate_categories_id_seq'::regclass);
+
+
+--
+-- Name: candidates id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY candidates ALTER COLUMN id SET DEFAULT nextval('candidates_id_seq'::regclass);
+
+
+--
+-- Name: constituencies id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY constituencies ALTER COLUMN id SET DEFAULT nextval('bigcircles_id_seq'::regclass);
+
+
+--
+-- Name: districts id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY districts ALTER COLUMN id SET DEFAULT nextval('smallcircles_id_seq'::regclass);
+
+
+--
+-- Name: electoral_lists id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY electoral_lists ALTER COLUMN id SET DEFAULT nextval('electoral_lists_id_seq'::regclass);
+
+
+--
+-- Name: bigcircles_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('bigcircles_id_seq', 45, true);
+
+
+--
+-- Data for Name: candidate_categories; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO candidate_categories VALUES (12, 'روم كاثوليك');
+INSERT INTO candidate_categories VALUES (13, 'درزي');
+INSERT INTO candidate_categories VALUES (14, 'ماروني');
+INSERT INTO candidate_categories VALUES (15, 'علوي');
+INSERT INTO candidate_categories VALUES (16, 'اقليات');
+INSERT INTO candidate_categories VALUES (17, 'انجيلي');
+INSERT INTO candidate_categories VALUES (18, 'ارمن ارثوذكس');
+INSERT INTO candidate_categories VALUES (19, 'شيعي');
+INSERT INTO candidate_categories VALUES (20, 'روم ارثوذكس');
+INSERT INTO candidate_categories VALUES (21, 'سني');
+INSERT INTO candidate_categories VALUES (22, 'ارمن كاثوليك');
+
+
+--
+-- Name: candidate_categories_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('candidate_categories_id_seq', 22, true);
+
+
+--
+-- Data for Name: candidates; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO candidates VALUES (33, 'دلال حليم الرحباني', 39, 5, 17);
+INSERT INTO candidates VALUES (34, 'سعيد علي حلبي', 39, 5, 13);
+INSERT INTO candidates VALUES (35, 'جورح نان شقير', 39, 5, 20);
+INSERT INTO candidates VALUES (36, 'صلاح الدهنيوسف سلام', 39, 5, 21);
+INSERT INTO candidates VALUES (37, 'عماد مدحت الحوت', 39, 5, 21);
+INSERT INTO candidates VALUES (38, 'ساعد الدهن نمر الوزان', 39, 5, 21);
+INSERT INTO candidates VALUES (39, 'moustafa bashir banbouk', 39, 5, 21);
+INSERT INTO candidates VALUES (40, 'محمد نبيل عثمان بدر', 39, 5, 21);
+INSERT INTO candidates VALUES (41, 'بشار حسين قوتلي', 39, 5, 21);
+INSERT INTO candidates VALUES (42, 'ابراهيم محمد مهدي شمس الدهن', 39, 5, 19);
+INSERT INTO candidates VALUES (43, 'سلوى ايوب خليل', 39, 5, 19);
+INSERT INTO candidates VALUES (44, 'نبيل رياضى السبعلي', 39, 6, 17);
+INSERT INTO candidates VALUES (45, 'هاني رامز فيات', 39, 6, 13);
+INSERT INTO candidates VALUES (46, 'عمر نجاح واكيم', 39, 6, 20);
+INSERT INTO candidates VALUES (47, 'فراس عهد الرحمن منيمنه', 39, 6, 21);
+INSERT INTO candidates VALUES (48, 'يوسف عهد القادر الطهثد', 39, 6, 21);
+INSERT INTO candidates VALUES (49, 'حنان احمد عثمان', 39, 6, 21);
+INSERT INTO candidates VALUES (50, 'فاتن فيصل زهن', 39, 6, 21);
+INSERT INTO candidates VALUES (51, 'ابراهيم محمد الطهي الدلال', 39, 6, 21);
+INSERT INTO candidates VALUES (52, 'زلى توفيق الحوري', 39, 6, 21);
+INSERT INTO candidates VALUES (53, 'نعمت هاشم بدر الدين', 39, 6, 19);
+INSERT INTO candidates VALUES (54, 'رجا رفيق الزهري', 39, 7, 13);
+INSERT INTO candidates VALUES (55, 'مخايل بهاء مخايل', 39, 7, 20);
+INSERT INTO candidates VALUES (56, 'mhammad kheir sakih el qadi', 39, 7, 21);
+INSERT INTO candidates VALUES (57, 'mhammad nabil shatila', 39, 7, 21);
+INSERT INTO candidates VALUES (58, 'جهاد حسن الأحمد مطر', 39, 7, 21);
+INSERT INTO candidates VALUES (59, 'حنان عدنان الشعار', 39, 7, 21);
+INSERT INTO candidates VALUES (60, 'خالد محمود سود', 39, 7, 21);
+INSERT INTO candidates VALUES (61, 'خلود موفق الوتار', 39, 7, 21);
+INSERT INTO candidates VALUES (62, 'ali hsein sbeity', 39, 7, 19);
+INSERT INTO candidates VALUES (63, 'نهاد سليم يذهله', 39, 8, 17);
+INSERT INTO candidates VALUES (64, 'زينه نبيه مجدلاني', 39, 8, 20);
+INSERT INTO candidates VALUES (65, 'فاطمه احمدمشرف', 39, 8, 21);
+INSERT INTO candidates VALUES (66, 'ندين محمود عيتاني', 39, 8, 21);
+INSERT INTO candidates VALUES (67, 'مروان وليد الطيبي', 39, 8, 21);
+INSERT INTO candidates VALUES (68, 'hasan faisal sinno', 39, 8, 21);
+INSERT INTO candidates VALUES (69, 'ابراهيمصن منيمنة', 39, 8, 21);
+INSERT INTO candidates VALUES (70, 'ناجي حسين قديح', 39, 8, 19);
+INSERT INTO candidates VALUES (71, 'نديم قزحيا قسطه', 39, 9, 17);
+INSERT INTO candidates VALUES (72, 'زينةكمل منذر', 39, 9, 13);
+INSERT INTO candidates VALUES (73, 'خليل إميل برمانه', 39, 9, 20);
+INSERT INTO candidates VALUES (74, 'محمود عهد القادر كريدية', 39, 9, 21);
+INSERT INTO candidates VALUES (75, 'رنا محمد للسهر الشميطلي', 39, 9, 21);
+INSERT INTO candidates VALUES (76, 'فؤادمصطفى مخزومي', 39, 9, 21);
+INSERT INTO candidates VALUES (77, 'عصام بشهر برخوث', 39, 9, 21);
+INSERT INTO candidates VALUES (78, 'معروف محمود عيتاني', 39, 9, 21);
+INSERT INTO candidates VALUES (79, 'ساعد الدهنصن خالد', 39, 9, 21);
+INSERT INTO candidates VALUES (80, 'يوسف محمد بيضون', 39, 9, 19);
+INSERT INTO candidates VALUES (81, 'ادكارجوزف طرابلس', 39, 10, 17);
+INSERT INTO candidates VALUES (82, 'عمر عهد القادر خندور', 39, 10, 21);
+INSERT INTO candidates VALUES (83, 'عدنانخضر طرابلس', 39, 10, 21);
+INSERT INTO candidates VALUES (84, 'محمد امين انور بعاصيري', 39, 10, 21);
+INSERT INTO candidates VALUES (85, 'امين محمد ثري', 39, 10, 19);
+INSERT INTO candidates VALUES (86, 'محمد مصطفى خواجه', 39, 10, 19);
+INSERT INTO candidates VALUES (87, 'فادي بهنان زرازير', 39, 11, 17);
+INSERT INTO candidates VALUES (88, 'اندهراسد الزهري', 39, 11, 13);
+INSERT INTO candidates VALUES (89, 'ليون سورين سيوفي', 39, 11, 20);
+INSERT INTO candidates VALUES (90, 'خالد ابراهيم حنقير', 39, 11, 21);
+INSERT INTO candidates VALUES (91, 'عهد الرحمنخضر الغلاهني', 39, 11, 21);
+INSERT INTO candidates VALUES (92, 'وليد شفيق شاتيلا', 39, 11, 21);
+INSERT INTO candidates VALUES (93, 'خالد سعيد ممتاز', 39, 11, 21);
+INSERT INTO candidates VALUES (94, 'عهد الكريمصك عيتاني', 39, 11, 21);
+INSERT INTO candidates VALUES (95, 'جهاد علي سود', 39, 11, 19);
+INSERT INTO candidates VALUES (96, 'وسام سعيد عكوثد', 39, 11, 19);
+INSERT INTO candidates VALUES (97, 'باسم الدكتوررمزي الشاب', 39, 12, 17);
+INSERT INTO candidates VALUES (98, 'فيصل عفيف الصايغ', 39, 12, 13);
+INSERT INTO candidates VALUES (99, 'نزيه نقولا نجم', 39, 12, 20);
+INSERT INTO candidates VALUES (100, 'تمامصائب بله سلام', 39, 12, 21);
+INSERT INTO candidates VALUES (101, 'رولا نزار الطهثد', 39, 12, 21);
+INSERT INTO candidates VALUES (102, 'ربيع محمد صونه', 39, 12, 21);
+INSERT INTO candidates VALUES (103, 'زاهر وليد عيدو', 39, 12, 21);
+INSERT INTO candidates VALUES (104, 'ساعد الدهن رفيق الحريري', 39, 12, 21);
+INSERT INTO candidates VALUES (105, 'نهاد صالح المشنوق', 39, 12, 21);
+INSERT INTO candidates VALUES (106, 'غازي علي يوسف', 39, 12, 19);
+INSERT INTO candidates VALUES (107, 'علي كمل للشاعر', 39, 12, 19);
+INSERT INTO candidates VALUES (108, 'زينه شوقي منصور', 39, 13, 13);
+INSERT INTO candidates VALUES (109, 'بشاره نعيمخر ايه', 39, 13, 20);
+INSERT INTO candidates VALUES (110, 'عامر احمد اسكندراني', 39, 13, 21);
+INSERT INTO candidates VALUES (111, 'زياد غازي عيتاني', 39, 13, 21);
+INSERT INTO candidates VALUES (112, 'اكرم محمد سانو', 39, 13, 21);
+INSERT INTO candidates VALUES (113, 'ياسين معروف قدادو', 39, 13, 21);
+INSERT INTO candidates VALUES (114, 'سفيه معروف ظاظا', 39, 13, 21);
+INSERT INTO candidates VALUES (115, 'لينامحمد علي حمدان', 39, 13, 19);
+INSERT INTO candidates VALUES (116, 'ربيع خليل عواد', 41, 14, 19);
+INSERT INTO candidates VALUES (117, 'وليد نجيب الخوري', 41, 14, 14);
+INSERT INTO candidates VALUES (118, 'سبيمون فريد ابي رميا', 41, 14, 14);
+INSERT INTO candidates VALUES (119, 'نعمهجورح افرام', 38, 14, 14);
+INSERT INTO candidates VALUES (120, 'زياد سليم بارود', 38, 14, 14);
+INSERT INTO candidates VALUES (121, 'روجه جرجي عازار', 38, 14, 14);
+INSERT INTO candidates VALUES (122, 'شامل رشيد روكز', 38, 14, 14);
+INSERT INTO candidates VALUES (123, 'منصور فؤاد غانم البون', 38, 14, 14);
+INSERT INTO candidates VALUES (124, 'صك محمد زعيتر', 41, 15, 19);
+INSERT INTO candidates VALUES (125, 'سام اسد الهاشم', 41, 15, 14);
+INSERT INTO candidates VALUES (126, 'جان لوي لويس قرداحي', 41, 15, 14);
+INSERT INTO candidates VALUES (127, 'كارلوس بطرس ليي ناضر', 38, 15, 14);
+INSERT INTO candidates VALUES (128, 'جوزيف طانيوس الزايك', 38, 15, 14);
+INSERT INTO candidates VALUES (129, 'جوزاف طانيوس زخهب', 38, 15, 14);
+INSERT INTO candidates VALUES (130, 'زينهجوزاف الكلاب', 38, 15, 14);
+INSERT INTO candidates VALUES (131, 'ميشال بشاره كيروز', 38, 15, 14);
+INSERT INTO candidates VALUES (132, 'محمود ابراهيم عواد', 41, 16, 19);
+INSERT INTO candidates VALUES (133, 'زياد حليم الحواط', 41, 16, 14);
+INSERT INTO candidates VALUES (134, 'فادي نجيب روحاناصقر', 41, 16, 14);
+INSERT INTO candidates VALUES (135, 'روك انطوان طانيوس مهنا', 38, 16, 14);
+INSERT INTO candidates VALUES (136, 'باتريسيا جان الياس', 38, 16, 14);
+INSERT INTO candidates VALUES (137, 'شوقي جرجي الدكاش', 38, 16, 14);
+INSERT INTO candidates VALUES (138, 'نعمان جوزيف مراد', 38, 16, 14);
+INSERT INTO candidates VALUES (139, 'زياد حههب خليفه هاشم', 38, 16, 14);
+INSERT INTO candidates VALUES (140, 'مصطفى علي الحسيني', 41, 17, 19);
+INSERT INTO candidates VALUES (141, 'فارس انطون سعيد', 41, 17, 14);
+INSERT INTO candidates VALUES (142, 'جان نسيب الحواط', 41, 17, 14);
+INSERT INTO candidates VALUES (143, 'فريد هيكل الخازن', 38, 17, 14);
+INSERT INTO candidates VALUES (144, 'يوسف المعروفجوزف حنا خليل', 38, 17, 14);
+INSERT INTO candidates VALUES (145, 'يولاند سبيمون خوري', 38, 17, 14);
+INSERT INTO candidates VALUES (146, 'شاكر الياس سعته', 38, 17, 14);
+INSERT INTO candidates VALUES (147, 'جلبرت موريس زوين', 38, 17, 14);
+INSERT INTO candidates VALUES (148, 'محمد كرم المقداد', 41, 18, 19);
+INSERT INTO candidates VALUES (149, 'رانيا فيكتور باسيل', 41, 18, 14);
+INSERT INTO candidates VALUES (150, 'nadim shafiq said', 41, 18, 14);
+INSERT INTO candidates VALUES (151, 'يوسف الياس يلملامه', 38, 18, 14);
+INSERT INTO candidates VALUES (152, 'جوزفين انطوان زخهب', 38, 18, 14);
+INSERT INTO candidates VALUES (153, 'دوري نزيهضو', 38, 18, 14);
+INSERT INTO candidates VALUES (154, 'انجب اوهانس انجب هاقرادونيان', 43, 19, 18);
+INSERT INTO candidates VALUES (155, 'الياس نقولا هوصعب', 43, 19, 20);
+INSERT INTO candidates VALUES (156, 'نان اميل مخيبر', 43, 19, 20);
+INSERT INTO candidates VALUES (157, 'ادكار بولس معلوف', 43, 19, 12);
+INSERT INTO candidates VALUES (158, 'نان اسد الاشقر', 43, 19, 14);
+INSERT INTO candidates VALUES (159, 'كورين قيل الأشقر', 43, 19, 14);
+INSERT INTO candidates VALUES (160, 'سركيس الياس سركيس', 43, 19, 14);
+INSERT INTO candidates VALUES (161, 'ابراهيميوسف كنعان', 43, 19, 14);
+INSERT INTO candidates VALUES (162, 'ارا مكرديج قيونيان', 43, 20, 18);
+INSERT INTO candidates VALUES (163, 'lina samir mkhaiber', 43, 20, 20);
+INSERT INTO candidates VALUES (164, 'جسيكا جوزيف عازار', 43, 20, 20);
+INSERT INTO candidates VALUES (165, 'ميشال جورح مكتف', 43, 20, 12);
+INSERT INTO candidates VALUES (166, 'جيزيل ادوار عبدو نعمه هاشم', 43, 20, 14);
+INSERT INTO candidates VALUES (167, 'ماجد ادي فايق ابي اللمع', 43, 20, 14);
+INSERT INTO candidates VALUES (168, 'رازي وديع الحاح', 43, 20, 14);
+INSERT INTO candidates VALUES (169, 'شكري نسيب مكرزل', 43, 20, 14);
+INSERT INTO candidates VALUES (170, 'ميشال الياس المر', 43, 21, 20);
+INSERT INTO candidates VALUES (171, 'جورح جوزف عهود', 43, 21, 12);
+INSERT INTO candidates VALUES (172, 'ميلاد فارس السبعلي', 43, 21, 14);
+INSERT INTO candidates VALUES (173, 'شربل سمعان ابو جوده', 43, 21, 14);
+INSERT INTO candidates VALUES (174, 'نجوى توفيق عازار', 43, 21, 14);
+INSERT INTO candidates VALUES (175, 'جورح نعيم الرحباني', 43, 22, 20);
+INSERT INTO candidates VALUES (176, 'شربل مارون نحاس', 43, 22, 12);
+INSERT INTO candidates VALUES (177, 'فكتوريا سابع الخوري', 43, 22, 14);
+INSERT INTO candidates VALUES (178, 'لديب يوسف طعمه', 43, 22, 14);
+INSERT INTO candidates VALUES (179, 'نادين فيكتورموس', 43, 22, 14);
+INSERT INTO candidates VALUES (180, 'اميلجرجي كنعان', 43, 22, 14);
+INSERT INTO candidates VALUES (181, 'يغيشه قره بت اندونيان', 43, 23, 18);
+INSERT INTO candidates VALUES (182, 'فيوليت كركور عال', 43, 23, 20);
+INSERT INTO candidates VALUES (183, 'مازن اسعد السكاف', 43, 23, 20);
+INSERT INTO candidates VALUES (184, 'مخايل الياس الرنوز', 43, 23, 12);
+INSERT INTO candidates VALUES (185, 'ندى خطار عيب', 43, 23, 14);
+INSERT INTO candidates VALUES (186, 'سامي امين الجميل', 43, 23, 14);
+INSERT INTO candidates VALUES (187, 'جوزيف قزحيا كرم', 43, 23, 14);
+INSERT INTO candidates VALUES (188, 'الياس رائيف حنكثد', 43, 23, 14);
+INSERT INTO candidates VALUES (189, 'قاسم علي عهد العزيز', 28, 24, 21);
+INSERT INTO candidates VALUES (190, 'سامي احمد شوقي فتفت', 28, 24, 21);
+INSERT INTO candidates VALUES (191, '3othman mohammad 3alam eddine', 31, 24, 21);
+INSERT INTO candidates VALUES (192, 'نعمهجرجس محفوص', 33, 24, 20);
+INSERT INTO candidates VALUES (193, 'شادي نان نشابه', 33, 24, 21);
+INSERT INTO candidates VALUES (194, 'ديما محمد رشيد الجمالي', 33, 24, 21);
+INSERT INTO candidates VALUES (195, 'محمد عهد اللطيف كباره', 33, 24, 21);
+INSERT INTO candidates VALUES (196, 'سمير عدنان الجسر', 33, 24, 21);
+INSERT INTO candidates VALUES (197, 'وليد محمود الصوالحي', 33, 24, 21);
+INSERT INTO candidates VALUES (198, 'ليلىصن شحود', 33, 24, 15);
+INSERT INTO candidates VALUES (199, 'جورح طانيوس الهكديني', 33, 24, 14);
+INSERT INTO candidates VALUES (200, 'علي مصطفى هرموش', 28, 25, 21);
+INSERT INTO candidates VALUES (201, 'ahmad mhammad shandab', 28, 25, 21);
+INSERT INTO candidates VALUES (202, 'kamal mhammad saleh alkhair', 31, 25, 21);
+INSERT INTO candidates VALUES (203, 'نسطاس وليم الكوثظي', 33, 25, 20);
+INSERT INTO candidates VALUES (204, 'خالد كامل روميه', 33, 25, 21);
+INSERT INTO candidates VALUES (205, 'محمود عهد الكريم شحاده', 33, 25, 15);
+INSERT INTO candidates VALUES (206, 'طوني فريد ماروني', 33, 25, 14);
+INSERT INTO candidates VALUES (207, 'داني محمود عثمان', 28, 26, 21);
+INSERT INTO candidates VALUES (208, 'ahmad moustafa aldhaybi', 31, 26, 21);
+INSERT INTO candidates VALUES (209, 'فرح ابراهيم عيسى', 33, 26, 20);
+INSERT INTO candidates VALUES (210, 'مالك فيصل مولوي', 33, 26, 21);
+INSERT INTO candidates VALUES (211, 'واثق عهد الرزاق المقدم', 33, 26, 21);
+INSERT INTO candidates VALUES (212, 'mhammad monzer ashraf ma3aliqi', 33, 26, 21);
+INSERT INTO candidates VALUES (213, 'يحي كمل مولود', 33, 26, 21);
+INSERT INTO candidates VALUES (214, 'ناريمان عادل الثسعه', 33, 26, 21);
+INSERT INTO candidates VALUES (215, 'زهن الدهن نور الدهن دهب', 33, 26, 15);
+INSERT INTO candidates VALUES (216, 'موسى اسعدخوري', 33, 26, 14);
+INSERT INTO candidates VALUES (217, 'راهب محمد فيصل رعد', 28, 27, 21);
+INSERT INTO candidates VALUES (218, 'osama nadim amoun', 28, 27, 21);
+INSERT INTO candidates VALUES (219, 'وليد محمد للمصري', 31, 27, 21);
+INSERT INTO candidates VALUES (220, 'جورح نقولا الجلاد', 33, 27, 20);
+INSERT INTO candidates VALUES (221, 'علي عبدالحليم الايوبي', 33, 27, 21);
+INSERT INTO candidates VALUES (222, 'اشرف احمد ريفي', 33, 27, 21);
+INSERT INTO candidates VALUES (223, 'خالد عمر تدمري', 33, 27, 21);
+INSERT INTO candidates VALUES (224, 'محمد كمل الدهن سلهب', 33, 27, 21);
+INSERT INTO candidates VALUES (225, 'محمد وليد عهد القادر قمر الدهن', 33, 27, 21);
+INSERT INTO candidates VALUES (226, 'بدرصك عهد', 33, 27, 15);
+INSERT INTO candidates VALUES (227, 'حليم نعيم زعني', 33, 27, 14);
+INSERT INTO candidates VALUES (228, 'جهاد علي يوسف', 28, 28, 21);
+INSERT INTO candidates VALUES (229, 'محمد احمد طلال الفاضل', 28, 28, 21);
+INSERT INTO candidates VALUES (230, 'كاظم صالحخر', 31, 28, 21);
+INSERT INTO candidates VALUES (231, 'نقولا كميل نحاس', 33, 28, 20);
+INSERT INTO candidates VALUES (232, 'محمد نجيب عزمي ميقاتي', 33, 28, 21);
+INSERT INTO candidates VALUES (233, 'رشيد ابرا ههم المقدم', 33, 28, 21);
+INSERT INTO candidates VALUES (234, 'محمد توفيق محمد راشد سلطان', 33, 28, 21);
+INSERT INTO candidates VALUES (235, 'مرفث محمد فضل الهز', 33, 28, 21);
+INSERT INTO candidates VALUES (236, 'محمد انس عهد ايه نديم الجسر', 33, 28, 21);
+INSERT INTO candidates VALUES (237, 'علي احمد درويش', 33, 28, 15);
+INSERT INTO candidates VALUES (238, 'جان بدوي عبيد', 33, 28, 14);
+INSERT INTO candidates VALUES (239, 'عهد السلام احمد طراد', 28, 29, 21);
+INSERT INTO candidates VALUES (240, 'علي فاروق الصمد', 28, 29, 21);
+INSERT INTO candidates VALUES (241, 'محمد محمود الحاج احمد', 31, 29, 21);
+INSERT INTO candidates VALUES (242, 'منزه جبران صوان', 33, 29, 20);
+INSERT INTO candidates VALUES (243, 'محمد مصباح عوني احدب', 33, 29, 21);
+INSERT INTO candidates VALUES (244, 'ناريمان هلال الجمل', 33, 29, 21);
+INSERT INTO candidates VALUES (245, 'وسهم علي علوان', 33, 29, 21);
+INSERT INTO candidates VALUES (246, 'هشام رياضى إبراهيم', 33, 29, 15);
+INSERT INTO candidates VALUES (247, 'انطوان روفايل خليفه', 33, 29, 14);
+INSERT INTO candidates VALUES (248, 'جهاد مرشد الصمد', 28, 30, 21);
+INSERT INTO candidates VALUES (249, 'عادل محمد كاظم فريقه', 31, 30, 21);
+INSERT INTO candidates VALUES (250, 'رظي انطون دياب', 33, 30, 20);
+INSERT INTO candidates VALUES (251, 'محمد صفوح احمدعصمت شريف يكن', 33, 30, 21);
+INSERT INTO candidates VALUES (252, 'طه عطفت ناجي', 33, 30, 21);
+INSERT INTO candidates VALUES (253, 'فيصل عمر كرامي', 33, 30, 21);
+INSERT INTO candidates VALUES (254, 'ايمن نور الدهن عمر', 33, 30, 21);
+INSERT INTO candidates VALUES (255, 'عبدالناصر عهد العزيز للمصري', 33, 30, 21);
+INSERT INTO candidates VALUES (256, 'احمد محمود عمران', 33, 30, 15);
+INSERT INTO candidates VALUES (257, 'ساح يحي العرجه', 28, 31, 21);
+INSERT INTO candidates VALUES (258, 'ليمن عمر جمل', 28, 31, 21);
+INSERT INTO candidates VALUES (259, 'عهدااة عهد القادر الرفاعي', 31, 31, 21);
+INSERT INTO candidates VALUES (260, 'فادي بيكار الجمل', 33, 31, 20);
+INSERT INTO candidates VALUES (261, 'جمل نصر الدهن حمرا البدوي', 33, 31, 21);
+INSERT INTO candidates VALUES (262, 'ههه عصام نجا', 33, 31, 21);
+INSERT INTO candidates VALUES (263, 'صانصن خليل', 33, 31, 15);
+INSERT INTO candidates VALUES (264, 'نعمه ابراهيم ابراهيم', 52, 32, 14);
+INSERT INTO candidates VALUES (265, 'جبران جرجي باسيل', 52, 32, 14);
+INSERT INTO candidates VALUES (266, 'نقولا بله فؤاد بلهضمن ضمن', 30, 32, 20);
+INSERT INTO candidates VALUES (267, 'جورح نعيم عطا ايه', 30, 32, 20);
+INSERT INTO candidates VALUES (268, 'عيتا حههبصعب', 30, 32, 20);
+INSERT INTO candidates VALUES (269, 'سعيد يوسف طوق', 42, 32, 14);
+INSERT INTO candidates VALUES (270, 'جورح بدوي بطرس', 42, 32, 14);
+INSERT INTO candidates VALUES (271, 'بيارجرجس رفول', 36, 32, 14);
+INSERT INTO candidates VALUES (272, 'جواد سايمون بولس', 36, 32, 14);
+INSERT INTO candidates VALUES (273, 'ميشال رانهمطهر', 36, 32, 14);
+INSERT INTO candidates VALUES (274, 'ليل سمعان هوموس', 52, 33, 14);
+INSERT INTO candidates VALUES (275, 'انطون حههب الخوري حرب', 52, 33, 14);
+INSERT INTO candidates VALUES (276, 'بسام نديمهطوس', 30, 33, 20);
+INSERT INTO candidates VALUES (277, 'فدوى فايز ناصيف', 30, 33, 20);
+INSERT INTO candidates VALUES (278, 'ادمون مخائيلطوق', 42, 33, 14);
+INSERT INTO candidates VALUES (279, 'موريس رومانوس الكورى', 42, 33, 14);
+INSERT INTO candidates VALUES (280, 'رياضى سركيس هزاله', 36, 33, 14);
+INSERT INTO candidates VALUES (281, 'انطوان يوسف هنن', 36, 33, 14);
+INSERT INTO candidates VALUES (282, 'انطونيا رامز خمره', 36, 33, 14);
+INSERT INTO candidates VALUES (283, 'بطرس جوزف الخوري حرب', 52, 34, 14);
+INSERT INTO candidates VALUES (284, 'فايز ميشالضمن', 30, 34, 20);
+INSERT INTO candidates VALUES (285, 'عهد ايه عليم الزاخم', 30, 34, 20);
+INSERT INTO candidates VALUES (286, 'سليم عهدااة سعاده', 30, 34, 20);
+INSERT INTO candidates VALUES (287, 'روي بهجت عهعدى الخوري', 42, 34, 14);
+INSERT INTO candidates VALUES (288, 'ملحم جبرانطوق', 42, 34, 14);
+INSERT INTO candidates VALUES (289, 'سليم بلهيوسف بله كرم', 36, 34, 14);
+INSERT INTO candidates VALUES (290, 'اسطفانبطرس الدويهي', 36, 34, 14);
+INSERT INTO candidates VALUES (291, 'طوني سليمان فرنجية', 36, 34, 14);
+INSERT INTO candidates VALUES (292, 'فادي يوسف ساعد', 52, 35, 14);
+INSERT INTO candidates VALUES (293, 'سامر جورح سعاده', 52, 35, 14);
+INSERT INTO candidates VALUES (294, 'البر جميل اندراوس', 30, 35, 20);
+INSERT INTO candidates VALUES (295, 'فادي عهدااة كرم', 30, 35, 20);
+INSERT INTO candidates VALUES (296, 'جورح موسي منصور', 30, 35, 20);
+INSERT INTO candidates VALUES (297, 'سعيدا الياسطوق', 42, 35, 14);
+INSERT INTO candidates VALUES (298, 'جوزاف جرجس اسحق', 42, 35, 14);
+INSERT INTO candidates VALUES (299, 'ميشال ياخس الدويهي', 36, 35, 14);
+INSERT INTO candidates VALUES (300, 'ماريوس بطرس البعيني', 36, 35, 14);
+INSERT INTO candidates VALUES (301, 'قيصر فريدمعو.', 36, 35, 14);
+INSERT INTO candidates VALUES (302, 'فيصل عليم داود', 27, 36, 13);
+INSERT INTO candidates VALUES (303, 'ايلي نجيب فرزلي', 27, 36, 20);
+INSERT INTO candidates VALUES (304, 'عهد الرحيم يوسف مراد', 27, 36, 21);
+INSERT INTO candidates VALUES (305, 'محمد دهب نصر الية', 27, 36, 19);
+INSERT INTO candidates VALUES (306, 'ناجي نبيه هانم', 27, 36, 14);
+INSERT INTO candidates VALUES (307, 'جوزف جرجس ايوب', 27, 37, 20);
+INSERT INTO candidates VALUES (308, 'فيصل عمررحل', 27, 37, 21);
+INSERT INTO candidates VALUES (309, 'علاء الدين عمر الشمالي', 27, 37, 21);
+INSERT INTO candidates VALUES (310, 'علي صهحي صهح', 27, 37, 19);
+INSERT INTO candidates VALUES (311, 'ماكي بديع عون', 27, 37, 14);
+INSERT INTO candidates VALUES (312, 'وائل وههي لهو فاعور', 27, 38, 13);
+INSERT INTO candidates VALUES (313, 'نان سليمان السكاف', 27, 38, 20);
+INSERT INTO candidates VALUES (314, 'زياد ناظم القادري', 27, 38, 21);
+INSERT INTO candidates VALUES (315, 'محمد قاسم القرعاوي', 27, 38, 21);
+INSERT INTO candidates VALUES (316, 'امين محمد وهبي', 27, 38, 19);
+INSERT INTO candidates VALUES (317, 'هنري يوسف شديد', 27, 38, 14);
+INSERT INTO candidates VALUES (318, 'ساعد الية هولو عردو', 50, 39, 12);
+INSERT INTO candidates VALUES (319, 'عادل محمد بيان', 50, 39, 21);
+INSERT INTO candidates VALUES (320, 'وعدصك سهكرية', 50, 39, 21);
+INSERT INTO candidates VALUES (321, 'محمد نان مصطفى الشل', 50, 39, 19);
+INSERT INTO candidates VALUES (322, 'خلدون وجيهشريف', 50, 39, 19);
+INSERT INTO candidates VALUES (323, 'عباس يوسف عساف', 50, 39, 19);
+INSERT INTO candidates VALUES (324, 'محمد خليل رعد', 50, 39, 19);
+INSERT INTO candidates VALUES (325, 'فؤاد خليل المولى', 50, 39, 19);
+INSERT INTO candidates VALUES (326, 'حمد علي دهب', 50, 39, 19);
+INSERT INTO candidates VALUES (327, 'ليلىيوسف تنوري', 50, 39, 14);
+INSERT INTO candidates VALUES (328, 'البر سامي منصور', 50, 40, 12);
+INSERT INTO candidates VALUES (329, 'يونس زكريا الرفاعي', 50, 40, 21);
+INSERT INTO candidates VALUES (330, 'الوليد محمد سمكرية', 50, 40, 21);
+INSERT INTO candidates VALUES (331, 'جميل محمد امين امين السيد', 50, 40, 19);
+INSERT INTO candidates VALUES (332, 'صك علي الحاجصن', 50, 40, 19);
+INSERT INTO candidates VALUES (333, 'ايهاب عروه حماده', 50, 40, 19);
+INSERT INTO candidates VALUES (334, 'علي محمد سلمان بشهر المقداد', 50, 40, 19);
+INSERT INTO candidates VALUES (335, 'ابراهيم علي الموسوي', 50, 40, 19);
+INSERT INTO candidates VALUES (336, 'غازي محمد زعيتر', 50, 40, 19);
+INSERT INTO candidates VALUES (337, 'اميل جورح رحمه', 50, 40, 14);
+INSERT INTO candidates VALUES (338, 'سهام جورح انطون', 50, 41, 12);
+INSERT INTO candidates VALUES (339, 'عبداله محمد الشل', 50, 41, 21);
+INSERT INTO candidates VALUES (340, 'سمك قاسم عز الدين', 50, 41, 21);
+INSERT INTO candidates VALUES (341, 'عباس محمد ياغي', 50, 41, 19);
+INSERT INTO candidates VALUES (342, 'علي حسين زعيتر', 50, 41, 19);
+INSERT INTO candidates VALUES (343, 'علي صهري بله حماده', 50, 41, 19);
+INSERT INTO candidates VALUES (344, 'شوقي طنوس الفخري', 50, 41, 14);
+INSERT INTO candidates VALUES (345, 'ميشال اميلضاهر', 50, 42, 12);
+INSERT INTO candidates VALUES (346, 'احمد عهد ايه بيان', 50, 42, 21);
+INSERT INTO candidates VALUES (347, 'محمد احمد ظيطي', 50, 42, 21);
+INSERT INTO candidates VALUES (348, 'مهدي نايف زخهب', 50, 42, 19);
+INSERT INTO candidates VALUES (349, 'ساعد فوزي حماده', 50, 42, 19);
+INSERT INTO candidates VALUES (350, 'غاده اسد عساف', 50, 42, 19);
+INSERT INTO candidates VALUES (351, 'فيصل علي الصيني', 50, 42, 19);
+INSERT INTO candidates VALUES (352, 'فايز شهاب شكر', 50, 42, 19);
+INSERT INTO candidates VALUES (353, 'فادي علي يونس', 50, 42, 19);
+INSERT INTO candidates VALUES (354, 'سندريللا الياس مرهج', 50, 42, 14);
+INSERT INTO candidates VALUES (355, 'سليم ميشال كلاس', 50, 43, 12);
+INSERT INTO candidates VALUES (356, 'بكر محمود الحجري', 50, 43, 21);
+INSERT INTO candidates VALUES (357, 'صك محمد صلح', 50, 43, 21);
+INSERT INTO candidates VALUES (358, 'محمدصن الحاج سليمان', 50, 43, 19);
+INSERT INTO candidates VALUES (359, 'خالي عباس ياغي', 50, 43, 19);
+INSERT INTO candidates VALUES (360, 'khodor 7sein tlas', 50, 43, 19);
+INSERT INTO candidates VALUES (361, 'ya7ya m7amad shamas', 50, 43, 19);
+INSERT INTO candidates VALUES (362, 'محمد سلمان حميه', 50, 43, 19);
+INSERT INTO candidates VALUES (363, 'رفعت نايف المصري', 50, 43, 19);
+INSERT INTO candidates VALUES (364, 'انطوان البدوي حهثس', 50, 43, 14);
+INSERT INTO candidates VALUES (365, 'الكسندر ابراهام ماطوسيان', 35, 44, 18);
+INSERT INTO candidates VALUES (366, 'هاكوب مارديروسسارس ترزيان', 35, 44, 18);
+INSERT INTO candidates VALUES (367, 'ساهوح اوهانس قالباكيان', 35, 44, 18);
+INSERT INTO candidates VALUES (368, 'سارح انجب جوخاداريان', 35, 44, 22);
+INSERT INTO candidates VALUES (369, 'انطوان قسطنطين هانو', 35, 44, 16);
+INSERT INTO candidates VALUES (370, 'نقولا ايلي شماس', 35, 44, 20);
+INSERT INTO candidates VALUES (371, 'نقولاموريس صحناوي', 35, 44, 12);
+INSERT INTO candidates VALUES (372, 'مسعود جوزف الأشقر', 35, 44, 14);
+INSERT INTO candidates VALUES (373, 'بوليت سبيراكان ياخوهيان', 35, 45, 18);
+INSERT INTO candidates VALUES (374, 'لوري قره هت حيطايان', 35, 45, 18);
+INSERT INTO candidates VALUES (375, 'ليفونهو- تلفزهان', 35, 45, 18);
+INSERT INTO candidates VALUES (376, 'يوركي موريس كروز', 35, 45, 22);
+INSERT INTO candidates VALUES (377, 'جمانه عطاالله سلوم', 35, 45, 16);
+INSERT INTO candidates VALUES (378, 'زياد ريمون عبس', 35, 45, 20);
+INSERT INTO candidates VALUES (379, 'لوسيانجرجس بورجيلي', 35, 45, 12);
+INSERT INTO candidates VALUES (380, 'جيلبير جورح ضومط', 35, 45, 14);
+INSERT INTO candidates VALUES (381, 'ساهيوه يغيا مخجيان', 35, 46, 18);
+INSERT INTO candidates VALUES (382, 'سبيرج بارج طورسركيسيان', 35, 46, 22);
+INSERT INTO candidates VALUES (383, 'رفيق جبرائيل بازرجي', 35, 46, 16);
+INSERT INTO candidates VALUES (384, 'ميشيل جبران تويني', 35, 46, 20);
+INSERT INTO candidates VALUES (385, 'جورح ريمون صفير', 35, 46, 14);
+INSERT INTO candidates VALUES (386, 'انطوانجوزف قلايجيان', 35, 47, 22);
+INSERT INTO candidates VALUES (387, 'جينا جميل الشماس', 35, 47, 16);
+INSERT INTO candidates VALUES (388, 'روبير عبدو الاههضى', 35, 47, 20);
+INSERT INTO candidates VALUES (389, 'روجه امل الشويري', 35, 47, 14);
+INSERT INTO candidates VALUES (390, 'اويدهسيغوص داكسيان', 35, 48, 18);
+INSERT INTO candidates VALUES (391, 'كارول نورا خاتشيك بابكيان', 35, 48, 18);
+INSERT INTO candidates VALUES (392, 'الينا نيشان كلونسيان', 35, 48, 18);
+INSERT INTO candidates VALUES (393, 'جان لرثف طالوزيان', 35, 48, 22);
+INSERT INTO candidates VALUES (394, 'رياضى امين عاقل', 35, 48, 16);
+INSERT INTO candidates VALUES (395, 'عماد نعيم واكيم', 35, 48, 20);
+INSERT INTO candidates VALUES (396, 'ميشال بهير فرعون', 35, 48, 12);
+INSERT INTO candidates VALUES (397, 'نديم بشهر الجمك', 35, 48, 14);
+INSERT INTO candidates VALUES (398, 'روبير الياس الخوري', 44, 49, 12);
+INSERT INTO candidates VALUES (399, 'امين ادمون رزق', 44, 49, 14);
+INSERT INTO candidates VALUES (400, 'انجل بشاره الخوند', 44, 49, 14);
+INSERT INTO candidates VALUES (401, 'صن محمد عليمشمس الدهن', 46, 49, 21);
+INSERT INTO candidates VALUES (402, 'بهية بهاء الدهن الحريري', 46, 49, 21);
+INSERT INTO candidates VALUES (403, 'سليم انطوانخوري', 44, 50, 12);
+INSERT INTO candidates VALUES (404, 'زياد ميشال لسد', 44, 50, 14);
+INSERT INTO candidates VALUES (405, 'امل حكمت لهو زيد', 44, 50, 14);
+INSERT INTO candidates VALUES (406, 'عهد الرحمن الدكتور نزيه البزري', 46, 50, 21);
+INSERT INTO candidates VALUES (407, 'بسام ابراهيم حمود', 46, 50, 21);
+INSERT INTO candidates VALUES (408, 'عجاج جرجي حداد', 44, 51, 12);
+INSERT INTO candidates VALUES (409, 'جوزاف الياس نهرا', 44, 51, 14);
+INSERT INTO candidates VALUES (410, 'سمير محمد البزري', 46, 51, 21);
+INSERT INTO candidates VALUES (411, 'يوسف حنا بشاره حنا ساعد السكاف', 44, 52, 12);
+INSERT INTO candidates VALUES (412, 'ابراهيمسد عازار', 44, 52, 14);
+INSERT INTO candidates VALUES (413, 'عهد القادر نزيه البساط', 46, 52, 21);
+INSERT INTO candidates VALUES (414, 'اسامهمعروف ساعد المصري', 46, 52, 21);
+INSERT INTO candidates VALUES (415, '7sein sa3id jashi', 45, 53, 19);
+INSERT INTO candidates VALUES (416, 'نواف محمود الموسوي', 45, 53, 19);
+INSERT INTO candidates VALUES (417, 'علي يوسف خريس', 45, 53, 19);
+INSERT INTO candidates VALUES (418, 'عناية محمد عز الدين', 45, 53, 19);
+INSERT INTO candidates VALUES (419, 'ميشال حنا موسى', 32, 53, 12);
+INSERT INTO candidates VALUES (420, 'علي عادل عسيران', 32, 53, 19);
+INSERT INTO candidates VALUES (421, 'نبيه مصطفى بري', 32, 53, 19);
+INSERT INTO candidates VALUES (422, 'عبدالناصرصن فران', 45, 54, 19);
+INSERT INTO candidates VALUES (423, 'احمد محمد سعيد مروه', 45, 54, 19);
+INSERT INTO candidates VALUES (424, 'رائد جعفر عطايا', 45, 54, 19);
+INSERT INTO candidates VALUES (425, 'ليناصن الصيني', 45, 54, 19);
+INSERT INTO candidates VALUES (426, 'وسام نهيه الحاج', 32, 54, 12);
+INSERT INTO candidates VALUES (427, 'رياضى سعيد الاسعد', 32, 54, 19);
+INSERT INTO candidates VALUES (428, 'هانيصن قهسي', 37, 55, 19);
+INSERT INTO candidates VALUES (429, 'محمدصن رعد', 37, 55, 19);
+INSERT INTO candidates VALUES (430, 'ياسين كامل جابر', 37, 55, 19);
+INSERT INTO candidates VALUES (431, 'صن نظام الدهنفضل الية', 40, 55, 19);
+INSERT INTO candidates VALUES (432, 'ايوب فهد حميم', 40, 55, 19);
+INSERT INTO candidates VALUES (433, 'علي احمد بزي', 40, 55, 19);
+INSERT INTO candidates VALUES (434, 'انور محمد الخليل', 47, 55, 13);
+INSERT INTO candidates VALUES (435, 'لسعد حليم حردان', 47, 55, 20);
+INSERT INTO candidates VALUES (436, 'قاسم عمر هاشم', 47, 55, 21);
+INSERT INTO candidates VALUES (437, 'علي رشيد فيات', 47, 55, 19);
+INSERT INTO candidates VALUES (438, 'علي حسن خليل', 47, 55, 19);
+INSERT INTO candidates VALUES (439, 'نديم سميح عسيران', 37, 56, 19);
+INSERT INTO candidates VALUES (440, 'هشام محمود مفيد جابر', 37, 56, 19);
+INSERT INTO candidates VALUES (441, 'مصطفى علي بدر الدهن', 37, 56, 19);
+INSERT INTO candidates VALUES (442, 'محمد مصطفى قدوح', 40, 56, 19);
+INSERT INTO candidates VALUES (443, 'صك جهاد الشاعر', 40, 56, 19);
+INSERT INTO candidates VALUES (444, 'وسام كمل شروف', 47, 56, 13);
+INSERT INTO candidates VALUES (445, 'شاديجرجسصد', 47, 56, 20);
+INSERT INTO candidates VALUES (446, 'عماد فؤاد الخطيب', 47, 56, 21);
+INSERT INTO candidates VALUES (447, 'عباس محمدشرف الدهن', 47, 56, 19);
+INSERT INTO candidates VALUES (448, 'مرهف احمد رمضان', 47, 56, 19);
+INSERT INTO candidates VALUES (449, 'احمد سامي اسماعيل', 37, 57, 19);
+INSERT INTO candidates VALUES (450, 'رامي سلمان عليق', 37, 57, 19);
+INSERT INTO candidates VALUES (451, 'علي محمدصن الامين', 40, 57, 19);
+INSERT INTO candidates VALUES (452, 'فادي كليم سعته', 47, 57, 20);
+INSERT INTO candidates VALUES (453, 'عماد محمد قميحه', 47, 57, 19);
+INSERT INTO candidates VALUES (454, 'علي حسين حاج علي', 37, 58, 19);
+INSERT INTO candidates VALUES (455, 'عباس علي سرور', 40, 58, 19);
+INSERT INTO candidates VALUES (456, 'صك محمد لمهن بيضون', 40, 58, 19);
+INSERT INTO candidates VALUES (457, 'احمد محمد مراد', 40, 58, 19);
+INSERT INTO candidates VALUES (458, 'نان مهنا حدهفه', 47, 58, 13);
+INSERT INTO candidates VALUES (459, 'هلا فيليب ابوكعم', 47, 58, 20);
+INSERT INTO candidates VALUES (460, 'سعيد محمد عهر', 47, 58, 21);
+INSERT INTO candidates VALUES (461, 'احمد محمد كامل الاسعد', 37, 59, 19);
+INSERT INTO candidates VALUES (462, 'محمد فرج ايهفرج', 40, 59, 19);
+INSERT INTO candidates VALUES (463, 'عهدااة محمود السلمان', 40, 59, 19);
+INSERT INTO candidates VALUES (464, 'كنج محمود علم الدهن', 47, 59, 13);
+INSERT INTO candidates VALUES (465, 'منح الياسصعب', 47, 59, 20);
+INSERT INTO candidates VALUES (466, 'عدنانصن الخطيب', 47, 59, 21);
+INSERT INTO candidates VALUES (467, 'عهر خالي رمضان', 47, 59, 19);
+INSERT INTO candidates VALUES (468, 'رباح كاظم ابي حيدر', 47, 59, 19);
+INSERT INTO candidates VALUES (469, 'جميل محمد علي بلوط', 37, 60, 19);
+INSERT INTO candidates VALUES (470, 'ريما علي حميد', 40, 60, 19);
+INSERT INTO candidates VALUES (471, 'صلاح مهدي نور الدين', 40, 60, 19);
+INSERT INTO candidates VALUES (472, 'اكرم محمد قيس', 47, 60, 13);
+INSERT INTO candidates VALUES (473, 'فادي عصام ابو جمره', 47, 60, 20);
+INSERT INTO candidates VALUES (474, 'نضل كرم السكاف', 48, 61, 20);
+INSERT INTO candidates VALUES (475, 'خولاي خالد الأسعد', 48, 61, 21);
+INSERT INTO candidates VALUES (476, 'سدعادحسن صلاح', 48, 61, 21);
+INSERT INTO candidates VALUES (477, 'رولى محمد المراد', 48, 61, 21);
+INSERT INTO candidates VALUES (478, 'ماري سلم سالم الخوري', 48, 61, 14);
+INSERT INTO candidates VALUES (479, 'كريم عهدااة الراسي', 48, 62, 20);
+INSERT INTO candidates VALUES (480, 'اميل نعيم عهود', 48, 62, 20);
+INSERT INTO candidates VALUES (481, 'صك محمد ياسر المصري', 48, 62, 21);
+INSERT INTO candidates VALUES (482, 'وجيه محمد البعريني', 48, 62, 21);
+INSERT INTO candidates VALUES (483, 'عدنان محي الدهنمرعب', 48, 62, 21);
+INSERT INTO candidates VALUES (484, 'صك محي الدهن السلوم', 48, 62, 15);
+INSERT INTO candidates VALUES (485, 'مخايل انطونيوس ضاهر', 48, 62, 14);
+INSERT INTO candidates VALUES (486, 'وهبي خليل خليل قاطيثده', 48, 63, 20);
+INSERT INTO candidates VALUES (487, 'جان نقولاموس', 48, 63, 20);
+INSERT INTO candidates VALUES (488, 'محمد مصطفى سليمان', 48, 63, 21);
+INSERT INTO candidates VALUES (489, 'وليد وجيه البعريني', 48, 63, 21);
+INSERT INTO candidates VALUES (490, 'محمد طارق طلال المرعبي', 48, 63, 21);
+INSERT INTO candidates VALUES (491, 'khodor monif habib', 48, 63, 15);
+INSERT INTO candidates VALUES (492, 'هادي فوزي حهيثد', 48, 63, 14);
+INSERT INTO candidates VALUES (493, 'لسعد رامز درهام', 48, 64, 20);
+INSERT INTO candidates VALUES (494, 'رياضى نقولارحل', 48, 64, 20);
+INSERT INTO candidates VALUES (495, 'mhammad yehya yehya', 48, 64, 21);
+INSERT INTO candidates VALUES (496, 'محمد عهد الفتاح شديد', 48, 64, 21);
+INSERT INTO candidates VALUES (497, 'محمودخضر حداره', 48, 64, 21);
+INSERT INTO candidates VALUES (498, 'مصطفى عليصك', 48, 64, 15);
+INSERT INTO candidates VALUES (499, 'جيمي جورح جهور', 48, 64, 14);
+INSERT INTO candidates VALUES (500, 'باسم احمد الخالد', 48, 65, 21);
+INSERT INTO candidates VALUES (501, 'كمل عهد الرحيم خزعل', 48, 65, 21);
+INSERT INTO candidates VALUES (502, 'عليخضر عمر', 48, 65, 21);
+INSERT INTO candidates VALUES (503, 'جورح انطونيوس نادر', 48, 65, 14);
+INSERT INTO candidates VALUES (504, 'ايلي اسعد ساعد', 48, 66, 20);
+INSERT INTO candidates VALUES (505, 'جوزيف وههي وههي', 48, 66, 20);
+INSERT INTO candidates VALUES (506, 'احمدصن جوهر', 48, 66, 21);
+INSERT INTO candidates VALUES (507, 'بدر علي اسماعيل', 48, 66, 21);
+INSERT INTO candidates VALUES (508, 'ابراهيممرعب مرعب', 48, 66, 21);
+INSERT INTO candidates VALUES (509, 'محمد ابراهيم رستم', 48, 66, 15);
+INSERT INTO candidates VALUES (510, 'زياد سعود بيطار', 48, 66, 14);
+INSERT INTO candidates VALUES (511, 'ونام ماهر نجيب وهاب', 51, 67, 13);
+INSERT INTO candidates VALUES (512, 'سليمان محفوظ ابورجيلي', 51, 67, 12);
+INSERT INTO candidates VALUES (513, 'زاهر انور الخطيب', 51, 67, 21);
+INSERT INTO candidates VALUES (514, 'الياس عهد السلام البراج', 51, 67, 21);
+INSERT INTO candidates VALUES (515, 'زياد انطوان الشويري', 51, 67, 14);
+INSERT INTO candidates VALUES (516, 'اسعد ادمون ابو جوده', 51, 67, 14);
+INSERT INTO candidates VALUES (517, 'خالد عارف خداج', 49, 67, 13);
+INSERT INTO candidates VALUES (518, 'شفيق سعته رضوان', 49, 67, 13);
+INSERT INTO candidates VALUES (519, 'وليد انيس خهرااة', 49, 67, 20);
+INSERT INTO candidates VALUES (520, 'سهيل خليل بجاني', 49, 67, 14);
+INSERT INTO candidates VALUES (521, 'مازنعصمت هو درهم', 51, 68, 13);
+INSERT INTO candidates VALUES (522, 'مروان سلمان الساري حلاوي', 51, 68, 13);
+INSERT INTO candidates VALUES (523, 'ضان امل عطاالله', 51, 68, 12);
+INSERT INTO candidates VALUES (524, 'علي صلاح الدهن الحاح', 51, 68, 21);
+INSERT INTO candidates VALUES (525, 'طارق محمد الخطيب', 51, 68, 21);
+INSERT INTO candidates VALUES (526, 'فريدجورح فيليب البستاني', 51, 68, 14);
+INSERT INTO candidates VALUES (527, 'ماريو عزيز عون', 51, 68, 14);
+INSERT INTO candidates VALUES (528, 'سمير يوسف عون', 51, 68, 14);
+INSERT INTO candidates VALUES (529, 'الامر طلال الامر مجيد ارسلان', 49, 68, 13);
+INSERT INTO candidates VALUES (530, 'الياس شديد حنا', 49, 68, 20);
+INSERT INTO candidates VALUES (531, 'عماد مارون الحاج الملقب بالمعلم', 49, 68, 14);
+INSERT INTO candidates VALUES (532, 'سبيزار ريمون ابي خليل', 49, 68, 14);
+INSERT INTO candidates VALUES (533, 'ماهر مامون ابو شقرا', 51, 69, 13);
+INSERT INTO candidates VALUES (534, 'رانيه عادل هيث', 51, 69, 13);
+INSERT INTO candidates VALUES (535, 'انطوان حههب فواز', 51, 69, 12);
+INSERT INTO candidates VALUES (536, 'مازن محمد نصر الدهن', 51, 69, 21);
+INSERT INTO candidates VALUES (537, 'محمد سامي الحجار', 51, 69, 21);
+INSERT INTO candidates VALUES (538, 'جورح اميل عون', 51, 69, 14);
+INSERT INTO candidates VALUES (539, 'غاده غازي ماروني', 51, 69, 14);
+INSERT INTO candidates VALUES (540, 'عماد حسيب للقاضي', 49, 69, 13);
+INSERT INTO candidates VALUES (541, 'علاء انور الصايغ', 49, 69, 13);
+INSERT INTO candidates VALUES (542, 'زويا نجيب جريديني', 49, 69, 20);
+INSERT INTO candidates VALUES (543, 'كارل فريد هو ملهم', 49, 69, 14);
+INSERT INTO candidates VALUES (544, 'رامي نهاد حماده', 51, 70, 13);
+INSERT INTO candidates VALUES (545, 'شكري يوسف حداد', 51, 70, 12);
+INSERT INTO candidates VALUES (546, 'مايا وحيد ترو', 51, 70, 21);
+INSERT INTO candidates VALUES (547, 'مروان عزيز المتني', 51, 70, 14);
+INSERT INTO candidates VALUES (548, 'ايليان ميشال قزي', 51, 70, 14);
+INSERT INTO candidates VALUES (549, 'الياس نجيبعيب', 51, 70, 14);
+INSERT INTO candidates VALUES (550, 'مارين بهجاتضو', 49, 70, 13);
+INSERT INTO candidates VALUES (551, 'فادي فؤاد الخوري', 49, 70, 14);
+INSERT INTO candidates VALUES (552, 'سامي توفيق حماده', 51, 71, 13);
+INSERT INTO candidates VALUES (553, 'الحان وليد فرحات', 51, 71, 13);
+INSERT INTO candidates VALUES (554, 'ضان نعيم مغهغب', 51, 71, 12);
+INSERT INTO candidates VALUES (555, 'رأفت احمد شعبان', 51, 71, 21);
+INSERT INTO candidates VALUES (556, 'مازن خلف شبو', 51, 71, 21);
+INSERT INTO candidates VALUES (557, 'كميل ميشال دوري شمعون', 51, 71, 14);
+INSERT INTO candidates VALUES (558, 'دعد ناصيف القزي', 51, 71, 14);
+INSERT INTO candidates VALUES (559, 'جوزاف حسيب عهد', 51, 71, 14);
+INSERT INTO candidates VALUES (560, 'سامي سلمان الرماح', 49, 71, 13);
+INSERT INTO candidates VALUES (561, 'انطوان نسيب هو ملهم', 49, 71, 14);
+INSERT INTO candidates VALUES (562, 'تيودورا طوني بجاني', 49, 71, 14);
+INSERT INTO candidates VALUES (563, 'تيمور وليد جنبلاط', 51, 72, 13);
+INSERT INTO candidates VALUES (564, 'مروان محمد حماده', 51, 72, 13);
+INSERT INTO candidates VALUES (565, 'نعمةيوسف طعمة', 51, 72, 12);
+INSERT INTO candidates VALUES (566, 'محمد قاسم رشيد الحجار', 51, 72, 21);
+INSERT INTO candidates VALUES (567, 'هلال لسد عهدااة', 51, 72, 21);
+INSERT INTO candidates VALUES (568, 'ناجي نبيه البستاني', 51, 72, 14);
+INSERT INTO candidates VALUES (569, 'جورح جميل عدوان', 51, 72, 14);
+INSERT INTO candidates VALUES (570, 'خطاس سمعان الخوري', 51, 72, 14);
+INSERT INTO candidates VALUES (571, 'لكرمصك شهيب', 49, 72, 13);
+INSERT INTO candidates VALUES (572, 'انيس وديع نصار', 49, 72, 20);
+INSERT INTO candidates VALUES (573, 'راجي نجيب السعد', 49, 72, 14);
+INSERT INTO candidates VALUES (574, 'هنري بيار الحلو', 49, 72, 14);
+INSERT INTO candidates VALUES (575, 'سهيل لسعد الأعور', 34, 73, 13);
+INSERT INTO candidates VALUES (576, 'فادي فخري علامه', 34, 73, 19);
+INSERT INTO candidates VALUES (577, 'علي فضل عمار', 34, 73, 19);
+INSERT INTO candidates VALUES (578, 'ناجي كميل غاريوس', 34, 73, 14);
+INSERT INTO candidates VALUES (579, 'الانجوزف عون', 34, 73, 14);
+INSERT INTO candidates VALUES (580, 'حكمت فرج دهب', 34, 73, 14);
+INSERT INTO candidates VALUES (581, 'اجود محمد العيان', 34, 74, 13);
+INSERT INTO candidates VALUES (582, 'الفت حمزه السبع', 34, 74, 19);
+INSERT INTO candidates VALUES (583, 'سعيد محمد علامه', 34, 74, 19);
+INSERT INTO candidates VALUES (584, 'ايلي مخايل غاريوس', 34, 74, 14);
+INSERT INTO candidates VALUES (585, 'بول شفيق ابي راشد', 34, 74, 14);
+INSERT INTO candidates VALUES (586, 'رمزي جميل هو خظد', 34, 74, 14);
+INSERT INTO candidates VALUES (587, 'رانيةرفعت المصري', 34, 75, 13);
+INSERT INTO candidates VALUES (588, 'علي حسن درويثد', 34, 75, 19);
+INSERT INTO candidates VALUES (589, 'واصف حههب الحركه', 34, 75, 19);
+INSERT INTO candidates VALUES (590, 'زياد مخايل عقل', 34, 75, 14);
+INSERT INTO candidates VALUES (591, 'ماري كلود البر الحلو', 34, 75, 14);
+INSERT INTO candidates VALUES (592, 'جوزف انطوان وانيس', 34, 75, 14);
+INSERT INTO candidates VALUES (593, 'هادي محمد رفيق لهو الصن', 34, 76, 13);
+INSERT INTO candidates VALUES (594, 'صلاح محمود الحركة', 34, 76, 19);
+INSERT INTO candidates VALUES (595, 'جوزف ميشال عضيمي', 34, 76, 14);
+INSERT INTO candidates VALUES (596, 'سبينتيا احمد رياضى الاسمر', 34, 76, 14);
+INSERT INTO candidates VALUES (597, 'بيار رشيد هو عاصي', 34, 76, 14);
+INSERT INTO candidates VALUES (598, 'كورين المعروف هجورج هامازاس بوشكيان', 29, 77, 18);
+INSERT INTO candidates VALUES (599, 'نقولا نجيب سابا', 29, 77, 20);
+INSERT INTO candidates VALUES (600, 'نقولاناصيف العموري المعلوف', 29, 77, 12);
+INSERT INTO candidates VALUES (601, 'مريم جبران طوق', 29, 77, 12);
+INSERT INTO candidates VALUES (602, 'احمد عهده العجمي', 29, 77, 21);
+INSERT INTO candidates VALUES (603, 'اسامهمحسن سلهب', 29, 77, 19);
+INSERT INTO candidates VALUES (604, 'بول جان شربل', 29, 77, 14);
+INSERT INTO candidates VALUES (605, 'بوخوس ههراهت كورديان', 29, 78, 18);
+INSERT INTO candidates VALUES (606, 'قيصر نعيم رزق المعلوف', 29, 78, 20);
+INSERT INTO candidates VALUES (607, 'جورح ايلي عقيص', 29, 78, 12);
+INSERT INTO candidates VALUES (608, 'ميشال الياس فتوثد', 29, 78, 12);
+INSERT INTO candidates VALUES (609, 'محمد علي احمد ميتا', 29, 78, 21);
+INSERT INTO candidates VALUES (610, 'عامر محمد الصبوري', 29, 78, 19);
+INSERT INTO candidates VALUES (611, 'ايلي ميشال ماروني', 29, 78, 14);
+INSERT INTO candidates VALUES (612, 'ماري جان كريكور مهران بيللجيان', 29, 79, 18);
+INSERT INTO candidates VALUES (613, 'اسعد شارل نكد', 29, 79, 20);
+INSERT INTO candidates VALUES (614, 'ميشال ميشال السكاف', 29, 79, 12);
+INSERT INTO candidates VALUES (615, 'ميشال جورح ضاهر', 29, 79, 12);
+INSERT INTO candidates VALUES (616, 'عاصم فايز عراجي', 29, 79, 21);
+INSERT INTO candidates VALUES (617, 'نزار محسن دلول', 29, 79, 19);
+INSERT INTO candidates VALUES (618, 'سليم جورح عون', 29, 79, 14);
+INSERT INTO candidates VALUES (619, 'ادي بوخوس دمرجيان', 29, 80, 18);
+INSERT INTO candidates VALUES (620, 'ناصيف الياس التيني', 29, 80, 20);
+INSERT INTO candidates VALUES (621, 'نقولا ميشال فتوثد', 29, 80, 12);
+INSERT INTO candidates VALUES (622, 'وجيه محمد عراجي', 29, 80, 21);
+INSERT INTO candidates VALUES (623, 'انور حسين جمعه', 29, 80, 19);
+INSERT INTO candidates VALUES (624, 'خليل جورح للهراوي', 29, 80, 14);
+INSERT INTO candidates VALUES (625, 'لاندا ادوار شديد', 29, 81, 20);
+INSERT INTO candidates VALUES (626, 'ضان جورح معلوف', 29, 81, 12);
+INSERT INTO candidates VALUES (627, 'هود نواف الطعيمة', 29, 81, 21);
+INSERT INTO candidates VALUES (628, 'محمد عباسصن', 29, 81, 19);
+INSERT INTO candidates VALUES (629, 'حنا فوزي حههب', 29, 81, 14);
+
+
+--
+-- Name: candidates_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('candidates_id_seq', 629, true);
+
+
+--
+-- Data for Name: constituencies; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO constituencies VALUES (31, 'بيروت الثانية');
+INSERT INTO constituencies VALUES (32, 'جبيل/كسروان');
+INSERT INTO constituencies VALUES (33, 'المتن');
+INSERT INTO constituencies VALUES (34, 'الضنية/المنية/طرابلس');
+INSERT INTO constituencies VALUES (35, 'البترون/الكورة/بشرى/زغرتا');
+INSERT INTO constituencies VALUES (36, 'البقاع الغربي وراشيا');
+INSERT INTO constituencies VALUES (37, 'بعلبك الهرمل');
+INSERT INTO constituencies VALUES (38, 'بيروت الأولى');
+INSERT INTO constituencies VALUES (39, 'جزين/صيدا');
+INSERT INTO constituencies VALUES (40, 'صور/قرى صيدا');
+INSERT INTO constituencies VALUES (41, 'النبطية/بنت جبيل/مرجعيون وحاصبيا');
+INSERT INTO constituencies VALUES (42, 'عكار');
+INSERT INTO constituencies VALUES (43, 'الشوف/عاليه');
+INSERT INTO constituencies VALUES (44, 'بعبدا');
+INSERT INTO constituencies VALUES (45, 'زحلة');
+
+
+--
+-- Data for Name: district_quotas; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO district_quotas VALUES (31, 21, 1);
+INSERT INTO district_quotas VALUES (47, 20, 1);
+INSERT INTO district_quotas VALUES (51, 21, 2);
+INSERT INTO district_quotas VALUES (49, 14, 2);
+INSERT INTO district_quotas VALUES (29, 18, 1);
+INSERT INTO district_quotas VALUES (34, 14, 3);
+INSERT INTO district_quotas VALUES (39, 20, 1);
+INSERT INTO district_quotas VALUES (33, 21, 5);
+INSERT INTO district_quotas VALUES (50, 21, 2);
+INSERT INTO district_quotas VALUES (29, 12, 2);
+INSERT INTO district_quotas VALUES (35, 22, 1);
+INSERT INTO district_quotas VALUES (48, 21, 3);
+INSERT INTO district_quotas VALUES (42, 14, 2);
+INSERT INTO district_quotas VALUES (32, 19, 2);
+INSERT INTO district_quotas VALUES (46, 21, 2);
+INSERT INTO district_quotas VALUES (51, 13, 2);
+INSERT INTO district_quotas VALUES (34, 19, 2);
+INSERT INTO district_quotas VALUES (43, 20, 2);
+INSERT INTO district_quotas VALUES (28, 21, 2);
+INSERT INTO district_quotas VALUES (39, 13, 1);
+INSERT INTO district_quotas VALUES (32, 12, 1);
+INSERT INTO district_quotas VALUES (41, 19, 1);
+INSERT INTO district_quotas VALUES (35, 20, 1);
+INSERT INTO district_quotas VALUES (29, 14, 1);
+INSERT INTO district_quotas VALUES (41, 14, 2);
+INSERT INTO district_quotas VALUES (47, 21, 1);
+INSERT INTO district_quotas VALUES (29, 19, 1);
+INSERT INTO district_quotas VALUES (48, 15, 1);
+INSERT INTO district_quotas VALUES (33, 20, 1);
+INSERT INTO district_quotas VALUES (27, 14, 1);
+INSERT INTO district_quotas VALUES (39, 21, 6);
+INSERT INTO district_quotas VALUES (30, 20, 3);
+INSERT INTO district_quotas VALUES (47, 13, 1);
+INSERT INTO district_quotas VALUES (27, 19, 1);
+INSERT INTO district_quotas VALUES (38, 14, 5);
+INSERT INTO district_quotas VALUES (45, 19, 4);
+INSERT INTO district_quotas VALUES (33, 15, 1);
+INSERT INTO district_quotas VALUES (48, 20, 2);
+INSERT INTO district_quotas VALUES (35, 16, 1);
+INSERT INTO district_quotas VALUES (49, 20, 1);
+INSERT INTO district_quotas VALUES (50, 12, 1);
+INSERT INTO district_quotas VALUES (47, 19, 2);
+INSERT INTO district_quotas VALUES (27, 13, 1);
+INSERT INTO district_quotas VALUES (29, 21, 1);
+INSERT INTO district_quotas VALUES (43, 14, 4);
+INSERT INTO district_quotas VALUES (39, 19, 2);
+INSERT INTO district_quotas VALUES (51, 12, 1);
+INSERT INTO district_quotas VALUES (27, 21, 2);
+INSERT INTO district_quotas VALUES (35, 12, 1);
+INSERT INTO district_quotas VALUES (35, 18, 3);
+INSERT INTO district_quotas VALUES (39, 17, 1);
+INSERT INTO district_quotas VALUES (44, 12, 1);
+INSERT INTO district_quotas VALUES (43, 12, 1);
+INSERT INTO district_quotas VALUES (43, 18, 1);
+INSERT INTO district_quotas VALUES (37, 19, 3);
+INSERT INTO district_quotas VALUES (51, 14, 3);
+INSERT INTO district_quotas VALUES (29, 20, 1);
+INSERT INTO district_quotas VALUES (35, 14, 1);
+INSERT INTO district_quotas VALUES (52, 14, 2);
+INSERT INTO district_quotas VALUES (40, 19, 3);
+INSERT INTO district_quotas VALUES (44, 14, 2);
+INSERT INTO district_quotas VALUES (34, 13, 1);
+INSERT INTO district_quotas VALUES (49, 13, 2);
+INSERT INTO district_quotas VALUES (48, 14, 1);
+INSERT INTO district_quotas VALUES (50, 19, 6);
+INSERT INTO district_quotas VALUES (36, 14, 3);
+INSERT INTO district_quotas VALUES (50, 14, 1);
+INSERT INTO district_quotas VALUES (27, 20, 1);
+INSERT INTO district_quotas VALUES (33, 14, 1);
+
+
+--
+-- Data for Name: districts; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO districts VALUES (27, 'البقاع الغربي وراشيا', 36);
+INSERT INTO districts VALUES (28, 'الضنية', 34);
+INSERT INTO districts VALUES (29, 'زحلة', 45);
+INSERT INTO districts VALUES (30, 'الكورة', 35);
+INSERT INTO districts VALUES (31, 'المنية', 34);
+INSERT INTO districts VALUES (32, 'قرى صيدا', 40);
+INSERT INTO districts VALUES (33, 'طرابلس', 34);
+INSERT INTO districts VALUES (34, 'بعبدا', 44);
+INSERT INTO districts VALUES (35, 'بيروت الأولى', 38);
+INSERT INTO districts VALUES (36, 'زغرتا', 35);
+INSERT INTO districts VALUES (37, 'النبطية', 41);
+INSERT INTO districts VALUES (38, 'كسروان', 32);
+INSERT INTO districts VALUES (39, 'بيروت الثانية', 31);
+INSERT INTO districts VALUES (40, 'بنت جبيل', 41);
+INSERT INTO districts VALUES (41, 'جبيل', 32);
+INSERT INTO districts VALUES (42, 'بشرى', 35);
+INSERT INTO districts VALUES (43, 'المتن', 33);
+INSERT INTO districts VALUES (44, 'جزين', 39);
+INSERT INTO districts VALUES (45, 'صور', 40);
+INSERT INTO districts VALUES (46, 'صيدا', 39);
+INSERT INTO districts VALUES (47, 'مرجعيون وحاصبيا', 41);
+INSERT INTO districts VALUES (48, 'عكار', 42);
+INSERT INTO districts VALUES (49, 'عاليه', 43);
+INSERT INTO districts VALUES (50, 'بعلبك الهرمل', 37);
+INSERT INTO districts VALUES (51, 'الشوف', 43);
+INSERT INTO districts VALUES (52, 'البترون', 35);
+
+
+--
+-- Data for Name: electoral_lists; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO electoral_lists VALUES (5, 'بيروت الوطن', 31);
+INSERT INTO electoral_lists VALUES (6, 'صوت الناس', 31);
+INSERT INTO electoral_lists VALUES (7, 'كرامة بيروت', 31);
+INSERT INTO electoral_lists VALUES (8, 'كلل بيروت', 31);
+INSERT INTO electoral_lists VALUES (9, 'لبنان حرزان', 31);
+INSERT INTO electoral_lists VALUES (10, 'وجدة بيروت', 31);
+INSERT INTO electoral_lists VALUES (11, 'البيارتة المستقلين', 31);
+INSERT INTO electoral_lists VALUES (12, 'المستقبل لبيروت', 31);
+INSERT INTO electoral_lists VALUES (13, 'المعارضة البيرونية', 31);
+INSERT INTO electoral_lists VALUES (14, 'لبنان القوي', 32);
+INSERT INTO electoral_lists VALUES (15, 'التضامن الوطني', 32);
+INSERT INTO electoral_lists VALUES (16, 'التغيير الأكيد', 32);
+INSERT INTO electoral_lists VALUES (17, 'عل القرار', 32);
+INSERT INTO electoral_lists VALUES (18, 'كلل وطني', 32);
+INSERT INTO electoral_lists VALUES (19, 'المتن القوي', 33);
+INSERT INTO electoral_lists VALUES (20, 'المتن قلب لبنان', 33);
+INSERT INTO electoral_lists VALUES (21, 'الوفاء المتنية', 33);
+INSERT INTO electoral_lists VALUES (22, 'كلل وطني', 33);
+INSERT INTO electoral_lists VALUES (23, 'نبني المتن', 33);
+INSERT INTO electoral_lists VALUES (24, 'المستقبل للشمال', 34);
+INSERT INTO electoral_lists VALUES (25, 'قرار الشعب', 34);
+INSERT INTO electoral_lists VALUES (26, 'كلناوطني', 34);
+INSERT INTO electoral_lists VALUES (27, 'لبنان السيادة', 34);
+INSERT INTO electoral_lists VALUES (28, 'العزم', 34);
+INSERT INTO electoral_lists VALUES (29, 'القرار المستقل', 34);
+INSERT INTO electoral_lists VALUES (30, 'الكرامة الوطنية', 34);
+INSERT INTO electoral_lists VALUES (31, 'المجتمع المدني المستقل', 34);
+INSERT INTO electoral_lists VALUES (32, 'الشمل القوي', 35);
+INSERT INTO electoral_lists VALUES (33, 'كلناوطني', 35);
+INSERT INTO electoral_lists VALUES (34, 'معا للشعر ولبنان', 35);
+INSERT INTO electoral_lists VALUES (35, 'نبني الجمهورية القويه', 35);
+INSERT INTO electoral_lists VALUES (36, 'الغد الأفضل', 36);
+INSERT INTO electoral_lists VALUES (37, 'المجتمع المدني', 36);
+INSERT INTO electoral_lists VALUES (38, 'المستقبل للبقاع الغربي وراشيا', 36);
+INSERT INTO electoral_lists VALUES (39, 'الأرز الوطني', 37);
+INSERT INTO electoral_lists VALUES (40, 'الأمل والوفاء', 37);
+INSERT INTO electoral_lists VALUES (41, 'الأنماء و التغيير', 37);
+INSERT INTO electoral_lists VALUES (42, 'المستقلة', 37);
+INSERT INTO electoral_lists VALUES (43, 'لانحة الكرامة والانعام', 37);
+INSERT INTO electoral_lists VALUES (44, 'بيروت الاولى القوية', 38);
+INSERT INTO electoral_lists VALUES (45, 'كلناوطني', 38);
+INSERT INTO electoral_lists VALUES (46, 'نحنا بيروت', 38);
+INSERT INTO electoral_lists VALUES (47, 'الوفاء لبيروت', 38);
+INSERT INTO electoral_lists VALUES (48, 'بيروت الاولى', 38);
+INSERT INTO electoral_lists VALUES (49, 'التكامل والكرامة', 39);
+INSERT INTO electoral_lists VALUES (50, 'صيدا وجزين معأ', 39);
+INSERT INTO electoral_lists VALUES (51, 'قدرة التغيير', 39);
+INSERT INTO electoral_lists VALUES (52, 'لكل الناس', 39);
+INSERT INTO electoral_lists VALUES (53, 'الأمل والوفاء', 40);
+INSERT INTO electoral_lists VALUES (54, 'معا نحو التغيير', 40);
+INSERT INTO electoral_lists VALUES (55, 'الأمل والوفاء', 41);
+INSERT INTO electoral_lists VALUES (56, 'الجنوب يستحق', 41);
+INSERT INTO electoral_lists VALUES (57, 'شبها حكي', 41);
+INSERT INTO electoral_lists VALUES (58, 'صوت و احد للتغيير', 41);
+INSERT INTO electoral_lists VALUES (59, 'فينا نغير', 41);
+INSERT INTO electoral_lists VALUES (60, 'كلل وطني', 41);
+INSERT INTO electoral_lists VALUES (61, 'نساء عكار', 42);
+INSERT INTO electoral_lists VALUES (62, 'القرار لعكار', 42);
+INSERT INTO electoral_lists VALUES (63, 'المستقبل لعكار', 42);
+INSERT INTO electoral_lists VALUES (64, 'عكار القوية', 42);
+INSERT INTO electoral_lists VALUES (65, 'قرار عكار', 42);
+INSERT INTO electoral_lists VALUES (66, 'لبنان السيادة', 42);
+INSERT INTO electoral_lists VALUES (67, 'الوحدة الوطنية', 43);
+INSERT INTO electoral_lists VALUES (68, 'ضمانة الجبل', 43);
+INSERT INTO electoral_lists VALUES (69, 'كلناوطني', 43);
+INSERT INTO electoral_lists VALUES (70, 'مدنية', 43);
+INSERT INTO electoral_lists VALUES (71, 'القرار الحر', 43);
+INSERT INTO electoral_lists VALUES (72, 'المصالحة', 43);
+INSERT INTO electoral_lists VALUES (73, 'الوفاق الوطني', 44);
+INSERT INTO electoral_lists VALUES (74, 'سوا لبعبدا', 44);
+INSERT INTO electoral_lists VALUES (75, 'كلناوطني', 44);
+INSERT INTO electoral_lists VALUES (76, 'وجدة واضاء لعهد ا', 44);
+INSERT INTO electoral_lists VALUES (77, 'الكتلة الشعبية', 45);
+INSERT INTO electoral_lists VALUES (78, 'زحله قضيتنا', 45);
+INSERT INTO electoral_lists VALUES (79, 'زحلة للكل', 45);
+INSERT INTO electoral_lists VALUES (80, 'زحله الخيار والقرار', 45);
+INSERT INTO electoral_lists VALUES (81, 'كلنا وطني', 45);
+
+
+--
+-- Name: electoral_lists_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('electoral_lists_id_seq', 81, true);
+
+
+--
+-- Data for Name: preferential_votes; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Name: smallcircles_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('smallcircles_id_seq', 52, true);
+
+
+--
+-- Data for Name: votes_per_list; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Name: constituencies bigcircles_pk; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY constituencies
+    ADD CONSTRAINT bigcircles_pk PRIMARY KEY (id);
+
+
+--
+-- Name: candidate_categories candidate_categories_pk; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY candidate_categories
+    ADD CONSTRAINT candidate_categories_pk PRIMARY KEY (id);
+
+
+--
+-- Name: candidates candidates_pk; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY candidates
+    ADD CONSTRAINT candidates_pk PRIMARY KEY (id);
+
+
+--
+-- Name: district_quotas district_quotas_pk; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY district_quotas
+    ADD CONSTRAINT district_quotas_pk PRIMARY KEY (district_id, category_id);
+
+
+--
+-- Name: electoral_lists electoral_lists_pk; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY electoral_lists
+    ADD CONSTRAINT electoral_lists_pk PRIMARY KEY (id);
+
+
+--
+-- Name: preferential_votes preferential_votes_pk; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY preferential_votes
+    ADD CONSTRAINT preferential_votes_pk PRIMARY KEY (constituency_id, candidate_id);
+
+
+--
+-- Name: districts smallcircles_pk; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY districts
+    ADD CONSTRAINT smallcircles_pk PRIMARY KEY (id);
+
+
+--
+-- Name: votes_per_list votes_per_list_un; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY votes_per_list
+    ADD CONSTRAINT votes_per_list_un UNIQUE (constituency_id, electoral_list_id);
+
+
+--
+-- Name: candidates candidates_candidate_categories_FK; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY candidates
+    ADD CONSTRAINT "candidates_candidate_categories_FK" FOREIGN KEY (category_id) REFERENCES candidate_categories(id) ON UPDATE RESTRICT ON DELETE CASCADE;
+
+
+--
+-- Name: candidates candidates_districts_FK; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY candidates
+    ADD CONSTRAINT "candidates_districts_FK" FOREIGN KEY (district_id) REFERENCES districts(id) ON UPDATE RESTRICT ON DELETE CASCADE;
+
+
+--
+-- Name: candidates candidates_electoral_lists_FK; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY candidates
+    ADD CONSTRAINT "candidates_electoral_lists_FK" FOREIGN KEY (electoral_list_id) REFERENCES electoral_lists(id) ON UPDATE RESTRICT ON DELETE CASCADE;
+
+
+--
+-- Name: district_quotas district_quotas_candidate_categories_FK; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY district_quotas
+    ADD CONSTRAINT "district_quotas_candidate_categories_FK" FOREIGN KEY (category_id) REFERENCES candidate_categories(id) ON UPDATE RESTRICT ON DELETE CASCADE;
+
+
+--
+-- Name: district_quotas district_quotas_districts_FK; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY district_quotas
+    ADD CONSTRAINT "district_quotas_districts_FK" FOREIGN KEY (district_id) REFERENCES districts(id) ON UPDATE RESTRICT ON DELETE CASCADE;
+
+
+--
+-- Name: districts districts_consituencies_FK; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY districts
+    ADD CONSTRAINT "districts_consituencies_FK" FOREIGN KEY (constituency_id) REFERENCES constituencies(id) ON UPDATE RESTRICT ON DELETE CASCADE;
+
+
+--
+-- Name: electoral_lists electoral_lists_consituencies_FK; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY electoral_lists
+    ADD CONSTRAINT "electoral_lists_consituencies_FK" FOREIGN KEY (constituency_id) REFERENCES constituencies(id) ON UPDATE RESTRICT ON DELETE CASCADE;
+
+
+--
+-- Name: preferential_votes preferential_votes_candidates_FK; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY preferential_votes
+    ADD CONSTRAINT "preferential_votes_candidates_FK" FOREIGN KEY (candidate_id) REFERENCES candidates(id) ON UPDATE RESTRICT ON DELETE CASCADE;
+
+
+--
+-- Name: preferential_votes preferential_votes_consituencies_FK; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY preferential_votes
+    ADD CONSTRAINT "preferential_votes_consituencies_FK" FOREIGN KEY (constituency_id) REFERENCES constituencies(id) ON UPDATE RESTRICT ON DELETE CASCADE;
+
+
+--
+-- Name: votes_per_list votes_per_list_consituencies_FK; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY votes_per_list
+    ADD CONSTRAINT "votes_per_list_consituencies_FK" FOREIGN KEY (constituency_id) REFERENCES constituencies(id) ON UPDATE RESTRICT ON DELETE CASCADE;
+
+
+--
+-- Name: votes_per_list votes_per_list_electoral_lists_FK; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY votes_per_list
+    ADD CONSTRAINT "votes_per_list_electoral_lists_FK" FOREIGN KEY (electoral_list_id) REFERENCES electoral_lists(id) ON UPDATE RESTRICT ON DELETE CASCADE;
+
+
+--
+-- PostgreSQL database dump complete
+--
+
