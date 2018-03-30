@@ -1,6 +1,5 @@
 $(document).ready(function() {
     var STORAGE_KEY_OPEN = "simulations";
-    var IFRAME_RESIZER_LOG = false;
 
     function makeTab(simulation) {
         var $li = $('<li role="presentation" class="simulation"></li>');
@@ -17,7 +16,7 @@ $(document).ready(function() {
 
     function makePane(simulation) {
         var $div = $('<div role="tabpanel" class="tab-pane simulation" id=""></div>');
-        var $iframe = $('<iframe class="simulation" name="" id="" src="about:blank" frameborder="0" width="100%" scrolling="no"></iframe>');
+        var $iframe = $('<iframe class="simulation" name="" id="" src="about:blank" frameborder="0" width="100%" scrolling="yes"></iframe>');
         $iframe.attr("name", "iframe_simulation_" + simulation);
         $iframe.attr("id", "iframe_simulation_" + simulation);
         $iframe.data("loaded", false);
@@ -90,10 +89,19 @@ $(document).ready(function() {
             $iframe.data("loaded", true);
             $iframe.data("loading", false);
             $pane.removeClass("loading");
-            var id = $iframe.attr("id");
-            iFrameResize({log: IFRAME_RESIZER_LOG}, '#' + id);
+            resizeIframes();
         });
         $iframe.attr("src", "/simulation/" + simulation + "/");
+    });
+
+    function resizeIframes() {
+        // See https://stackoverflow.com/a/20125592
+        $('iframe.simulation').height(function(){
+            return $(window).height()-$(this).offset().top;
+        });
+    }
+    $(window).on('load resize', function(){
+        resizeIframes();
     });
 
     $("form.formal#simulation-create-form").data("formal-success", function ($form, response) {
@@ -102,4 +110,4 @@ $(document).ready(function() {
     Formal.initAll();
 
     loadSimulations($("#simulation-tabs"), $("#simulation-panes"));
-} );
+});
