@@ -9,17 +9,17 @@
 
         <!-- Bootstrap css -->
         <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-daterangepicker/2.1.24/daterangepicker.min.css">
         <link rel="stylesheet" href="https://cdn.datatables.net/1.10.15/css/jquery.dataTables.min.css">
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.6-rc.0/css/select2.min.css" rel="stylesheet" />
         <style>
             body {
                 padding: 20px 0;
             }
         </style>
-        <link rel="stylesheet" href="{{ url_for('static', filename='css/stats/dashboard.css') }}">
 
         <script type="application/javascript">
             var TABLES = {{ tables|tojson }};
+            var FILTERS = {{ filters|tojson }};
         </script>
 
         <!--[if lt IE 9]>
@@ -45,15 +45,22 @@
                     </div>
                 </div>
                 <div class="row">
+<!--
                     <div class="col-md-12 table-container">
                         <h3>Quotas&nbsp;<a class="add-btn btn btn-default pull-right">&plus; Add</a></h3>
                         <table id="table-districtquota" class="table display" data-dependson="constituency district candidatecategory"></table>
+                    </div>
+-->
+                    <div class="col-md-12 table-container">
+                        <h3>Quotas</h3>
+                        <table id="table-simplequotas" class="table display" data-dependson="constituency district candidatecategory"></table>
                     </div>
                 </div>
                 <hr />
                 <div class="row">
                     <div class="col-md-6 table-container">
                         <h3>Lists&nbsp;<a class="add-btn btn btn-default pull-right">&plus; Add</a></h3>
+                        <select class="constituency-select form-control pull-right use-select2" data-filter-search="constituency" data-filter-key="constituency_id" data-filter-targets="electorallist"></select>
                         <table id="table-electorallist" class="table display" data-dependson="constituency"></table>
                     </div>
                     <div class="col-md-6 table-container">
@@ -135,7 +142,6 @@
                 <h4 class="modal-title">Edit</h4>
               </div>
               <div class="modal-body">
-                <p>One fine body&hellip;</p>
                   <form class="formal simple form" role="form" name="delete_form" id="delete_form"></form>
                   <form class="formal simple form" role="form" name="edit_form" id="edit_form"></form>
               </div>
@@ -152,6 +158,7 @@
         <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.15.1/moment.min.js"></script>
         <script src="https://cdn.datatables.net/1.10.15/js/jquery.dataTables.min.js"></script>
         <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.6-rc.0/js/select2.min.js"></script>
 
         <script src="{{ url_for('static', filename='formal.js') }}"></script>
         <script src="{{ url_for('static', filename='simulation.js') }}"></script>

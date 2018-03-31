@@ -15,7 +15,7 @@ import string
 from .datatables import DataTable
 
 FieldColumn = namedtuple('FieldColumn', 'name,title,filter,type,orderable,searchable,visible,editable,choices')
-ROFieldColumn = lambda *args, **kwargs: FieldColumn(*args, editable=False, visible=False, **kwargs)
+ROFieldColumn = lambda *args, **kwargs: FieldColumn(*args, editable=False, visible=True, **kwargs)
 noop_filter = lambda instance, value: value
 
 
@@ -455,7 +455,24 @@ class FinalResult(View, db.Model):
     preferential_percentage = db.Column(db.Numeric)
 
 
-def datatables_meta(fields, route):
+def build_choices(field):
+    if field.choices is None:
+        return None
+    if isinstance(field.choices, (list, tuple)):
+        return {
+            'source': 'static',
+            'items': field.choices,
+        }
+    return {
+        'source': 'ajax',
+        'url': url_for('.ajax_filter_{}'.format(field.choices.__name__.lower()), _external=True),
+        'items': [
+            {'id': item.id, 'name': item.name}
+            for item in field.choices.query
+        ]
+    }
+
+def datatables_meta(fields, route, has_create=True):
     return {
         "datatables": {
             "columns": [
@@ -468,10 +485,13 @@ def datatables_meta(fields, route):
                     'defaultContent': '<small><span class="label label-default">N/A</span></small>',
                 }
                 for f in fields
+                if f.visible
             ],
             "processing": True,
             "serverSide": True,
-            "ajax": url_for('.ajax_list_{}'.format(route), _external=True),
+            "ajax": {
+                "url": url_for('.ajax_list_{}'.format(route), _external=True),
+            },
         },
         "create": {
             "fields": [
@@ -481,16 +501,11 @@ def datatables_meta(fields, route):
                     'type': f.type,
                     'visible': f.visible,
                     'editable': f.editable,
-                    'choices': [{
-                            'id': c.id,
-                            'name': c.name,
-                        }
-                        for c in f.choices.query
-                    ] if f.choices else None,
+                    'choices': build_choices(f),
                 }
                 for f in fields
             ],
-            "ajax": url_for('.ajax_create_{}'.format(route), _external=True)
+            "ajax": url_for('.ajax_create_{}'.format(route), _external=True) if has_create else None
         }
     }
 
@@ -502,6 +517,16 @@ def datatables_list(model, fields, route):
         (f.name, f.name, f.filter)
         for f in fields
     ])
+
+    body = table.query_into_dict('extra_filters')
+    for key, val in body.items():
+        if val is None or val == '':
+            continue
+        if not any(f.name == key for f in fields):
+            raise ValueError("Illegal filter name")
+        col = getattr(model, key)
+        table.query = table.query.filter(col == val)
+
 
     def search(queryset, user_input):
         if user_input is None or user_input == u'':
@@ -596,7 +621,103 @@ def potato(dt, _model):
     def ajax_delete_constituency(mid):
         return jsonify(datatables_delete(_model, mid, _route_name))
 
+    @dt.route('/{}/filter'.format(_route_name), endpoint='ajax_filter_{}'.format(_route_name))
+    def constituency_filter():
+        return jsonify({
+            'results': [
+                {'id': cons.id, 'text': cons.name}
+                for cons in _model.query
+            ]
+        })
+
     TABLES[_route_name] = lambda rn=_route_name: url_for('datatables.meta_{}'.format(rn), _external=True)
+
+
+@dt.route('/simplequotas/meta')
+def meta_simplequotas():
+    fields = [
+        ROFieldColumn('constituency_id', 'Constituency', getname_filter(Constituency, 'name'), 'string', orderable=True, searchable=True, choices=Constituency),
+        ROFieldColumn('id', 'District', getname_filter(District, 'name'), 'string', orderable=True, searchable=True, choices=District),
+    ]
+    for category in CandidateCategory.query:
+        fields.append(FieldColumn(
+            'value_{}'.format(category.id), '{}'.format(category.name), noop_filter, 'number', orderable=True, searchable=False, choices=None, visible=True, editable=True
+        ))
+    return jsonify(datatables_meta(fields, 'simplequotas', has_create=False))
+
+@dt.route('/simplequotas/ajax/list')
+def ajax_list_simplequotas():
+    fields = [
+        ROFieldColumn('constituency_id', 'Constituency', getname_filter(Constituency, 'name'), 'string', orderable=True, searchable=True, choices=Constituency),
+        ROFieldColumn('id', 'District', getname_filter(District, 'name'), 'string', orderable=True, searchable=True, choices=District),
+    ]
+    for category in CandidateCategory.query:
+        fields.append(FieldColumn(
+            'value_{}'.format(category.id), '{}'.format(category.name), noop_filter, 'number', orderable=True, searchable=False, choices=None, visible=True, editable=True
+        ))
+
+    categories = CandidateCategory.query.all()
+    aliases = {}
+    cols = []
+    for category in categories:
+        aliases[category.id] = al = db.aliased(DistrictQuota, name='dq_{}'.format(category.id))
+        cols.append(db.func.coalesce(al.value, 0).label('value_{}'.format(category.id)))
+    query = db.session.query(District.constituency_id, District.id, *cols).join(Constituency, Constituency.id == District.constituency_id)
+    for cat_id, al in aliases.items():
+        query = query.outerjoin(al, (al.district_id == District.id) & (al.category_id == cat_id))
+
+    table = DataTable(request.args, District, query, [
+        (f.name, f.name, f.filter)
+        for f in fields
+    ])
+
+    def search(queryset, user_input):
+        if user_input is None or user_input == u'':
+            return None
+        # TODO joins and type checks for the queries where possible
+        queryset = queryset.filter(or_(*(
+            getattr(model, f.name).ilike(u'%{}%'.format(escape_like(str(user_input))))
+            for f in fields
+            if f.searchable
+        )))
+        return queryset
+    table.searchable(search)
+    table.add_data(edit_ajax=lambda o: url_for(".ajax_edit_simplequotas", mid=o.id, _external=True))
+    # ~ table.add_data(delete_ajax=lambda o: url_for(".ajax_delete_simplequotas", mid='xxx', _external=True))
+    table.add_data(fields_data=lambda o: {f.name: getattr(o, f.name) for f in fields})
+
+    dt_list = table.json()
+    return jsonify(dt_list)
+
+@dt.route('/simplequotas/ajax/edit/<mid>', methods=['POST'])
+def ajax_edit_simplequotas(mid):
+    instance = District.query.get_or_404(mid.split('_'))
+    district_id = instance.id
+
+    quotas = {
+        quota.category_id: quota
+        for quota in DistrictQuota.query.filter_by(district_id=district_id)
+    }
+
+    body = request.form
+    for category in CandidateCategory.query:
+        value = body.get('value_{}'.format(category.id), 0)
+        quota = quotas.get(category.id)
+        if quota is None:
+            quota = DistrictQuota(district_id=district_id, category_id=category.id)
+            db.session.add(quota)
+        quota.value = value or 0
+
+    db.session.commit()
+
+    return jsonify({
+        'message_severity': 'error',
+        'message': 'All good.',
+        'errors': {},
+        'success': True,
+    })
+
+TABLES['simplequotas'] = lambda: url_for('datatables.meta_simplequotas', _external=True)
 
 
 def escape_schema_name(schema_name):
@@ -653,7 +774,10 @@ def create_simulation():
 @dt.route('/')
 def simulation_iframe():
     tables = {k: v() for k, v in TABLES.items()}
-    return render_template('simulation.html', tables=tables)
+    filters = {
+        'constituency': url_for('.ajax_filter_constituency'),
+    }
+    return render_template('simulation.html', tables=tables, filters=filters)
 
 
 @dt.url_value_preprocessor

@@ -34,6 +34,9 @@ function renderTable(tbl, metadata_url, table_id) {
             }
             return col;
         });
+        options.ajax.data = function ( d ) {
+            d.extra_filters = $(tbl).data("filters");
+        };
         var table = $(tbl).DataTable(options);
         $(tbl).data("create_ajax", response.create.ajax);
         $(tbl).data("fields", response.create.fields);
@@ -78,14 +81,22 @@ $(document).ready(function() {
         $form.data("table-id", $table.data("table-id"));
         $.each($table.data("fields"), function(i, el) {
             var $field;
-            if (el.choices) {
-                $field = $('<select name="">');
-                $.each(el.choices, function(j, op) {
+            if (el.choices && el.choices.source == 'static') {
+                $field = $('<select class="form-control" name="">');
+                $.each(el.choices.items, function(j, op) {
                     $field.append($('<option>').attr("value", op.id).text(op.name));
                 });
                 $field.prop('disabled', !el.visible || !el.editable);
+            } else if (el.choices && el.choices.source == 'ajax') {
+                $field = $('<select class="use-select2 form-control" name="">');
+                $field.prop('disabled', !el.visible || !el.editable);
+                $field.attr("value", fieldsData[el.name]);
+                $field.data('ajax-url', el.choices.url);
+                $.each(el.choices.items, function(j, op) {
+                    $field.append($('<option>').attr("value", op.id).text(op.name));
+                });
             } else {
-                $field = $('<input type="text" value="" name="">');
+                $field = $('<input class="form-control" type="text" value="" name="">');
             }
             $field.attr("name", el.name);
             $field.attr("id", "field-" + el.name);
@@ -95,6 +106,16 @@ $(document).ready(function() {
             $div.append($("<label>").attr("for", "field-" + el.name).text(el.title));
             $div.append($field);
             $form.append($div);
+            $form.find('.use-select2').each(function() {
+                $(this).select2({
+                  ajax: {
+                    url: $(this).data('ajax-url'),
+                    dataType: 'json',
+                  },
+                  placeholder: 'Select...',
+                  allowClear: true,
+                });
+            });
         });
 
         $deleteForm.html("");
@@ -117,13 +138,16 @@ $(document).ready(function() {
         $form.data("table-id", $table.data("table-id"));
         $.each($table.data("fields"), function(i, el) {
             var $field;
-            if (el.choices) {
-                $field = $('<select name="">');
-                $.each(el.choices, function(j, op) {
+            if (el.choices && el.choices.source == 'static') {
+                $field = $('<select class="form-control" name="">');
+                $.each(el.choices.items, function(j, op) {
                     $field.append($('<option>').attr("value", op.id).text(op.name));
                 });
+            } else if (el.choices && el.choices.source == 'ajax') {
+                $field = $('<select class="use-select2 form-control" name="">');
+                $field.data('ajax-url', el.choices.url);
             } else {
-                $field = $('<input type="text" value="" name="">');
+                $field = $('<input class="form-control" type="text" value="" name="">');
             }
             $field.attr("name", el.name);
             $field.attr("id", "field-" + el.name);
@@ -132,6 +156,16 @@ $(document).ready(function() {
             $div.append($("<label>").attr("for", "field-" + el.name).text(el.title));
             $div.append($field);
             $form.append($div);
+            $form.find('.use-select2').each(function() {
+                $(this).select2({
+                  ajax: {
+                    url: $(this).data('ajax-url'),
+                    dataType: 'json',
+                  },
+                  placeholder: 'Select...',
+                  allowClear: true,
+                });
+            });
         });
         $("#edit-modal").modal();
 
@@ -159,6 +193,28 @@ $(document).ready(function() {
         $.each(descendants, function(i, el) {
             var elTable = $("table#table-" + el).DataTable();
             elTable.ajax.reload(null, false);
+        });
+    });
+    $('.use-select2').each(function() {
+        var filter_name = $(this).data('filter-search');
+        var filter_key = $(this).data('filter-key');
+        var filter_targets = ($(this).data('filter-targets') || "").split(" ");
+        $(this).select2({
+          ajax: {
+            url: FILTERS[filter_name],
+            dataType: 'json',
+          },
+          placeholder: 'Filter...',
+          allowClear: true,
+        }).on('change', function() {
+            var filter_data = {};
+            filter_data[filter_key] = $(this).val();
+            $.each(filter_targets, function(i, el) {
+                var $tbl = $("table#table-" + el);
+                $tbl.data('filters', filter_data);
+                var elTable = $tbl.DataTable();
+                elTable.ajax.reload(null, false);
+            });
         });
     });
     Formal.initAll();
